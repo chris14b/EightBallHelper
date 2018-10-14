@@ -15,22 +15,26 @@ class Table:
         output = self.image
 
         for pocket in self.pockets:
-            cv2.circle(output, pocket.position, pocket.radius, (0, 0, 255), 2)  # show a red circle for each pocket
+            cv2.circle(output, pocket.position, pocket.radius, Colour.POCKET, 2)  # show a red circle for each pocket
 
         for ball in self.balls:
             if ball.type == "solids":
-                colour = 255, 0, 0  # show a blue circle for a solids ball
+                colour = Colour.SOLIDS  # show a blue circle for a solids ball
             elif ball.type == "stripes":
-                colour = 0, 255, 0  # show a green circle for a stripes ball
+                colour = Colour.STRIPES  # show a green circle for a stripes ball
             else:
-                colour = 255, 255, 255  # show a white circle for any other ball type
+                colour = Colour.CUE  # show a white circle for any other ball type
 
             cv2.circle(output, ball.position, ball.radius, colour, -1)
 
-        # show the best shot
-        shot = self.__calculate_best_shot(ball_type)
-        cv2.line(output, shot.cue_ball.position, shot.ball.position, (255, 255, 255))
-        cv2.line(output, shot.ball.position, shot.pocket.position, (255, 255, 255))
+        shot = self.__calculate_best_shot(ball_type)  # determine the best shot
+
+        phantom_cue_ball = shot.create_phantom_cue_ball()  # location of cue ball when it hits target ball
+        cv2.circle(output, phantom_cue_ball.position, phantom_cue_ball.radius, Colour.CUE, 1)  # show phantom cue ball
+
+        # show ball trajectories
+        cv2.line(output, shot.cue_ball.position, phantom_cue_ball.position, Colour.CUE)
+        cv2.line(output, shot.target_ball.position, shot.pocket.position, Colour.CUE)
 
         cv2.imshow("Output", output)
         cv2.waitKey(0)
@@ -67,12 +71,12 @@ class Table:
 
 
 class Ball:
-    def __init__(self, _type, x, y, radius=10):
-        assert _type in ["cue", "eight", "solids", "stripes"]
+    def __init__(self, _type, x, y):
+        assert _type in ["cue", "eight", "solids", "stripes", "phantom_cue"]
 
         self.type = _type
         self.position = x, y
-        self.radius = radius
+        self.radius = 10
 
 
 class Pocket:
@@ -82,23 +86,52 @@ class Pocket:
 
 
 class Shot:
-    def __init__(self, cue_ball, ball, pocket):
+    def __init__(self, cue_ball, target_ball, pocket):
         self.cue_ball = cue_ball
-        self.ball = ball
+        self.target_ball = target_ball
         self.pocket = pocket
         self.angle = self.__calculate_angle()
 
     # use cosine rule to calculate the angle the target ball must deviate to land in a pocket
     def __calculate_angle(self):
-        a = Shot.__calculate_distance(self.ball.position, self.cue_ball.position)
-        b = Shot.__calculate_distance(self.ball.position, self.pocket.position)
+        a = Shot.__calculate_distance(self.target_ball.position, self.cue_ball.position)
+        b = Shot.__calculate_distance(self.target_ball.position, self.pocket.position)
         c = Shot.__calculate_distance(self.cue_ball.position, self.pocket.position)
-        return 180 - math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)) * 180 / math.pi
+        return 180 - self.__radians_to_degrees(math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)))
 
     # calculate distance between two points
     @staticmethod
     def __calculate_distance(position1, position2):
         return math.sqrt((position1[0] - position2[0]) ** 2 + (position1[1] - position2[1]) ** 2)
+
+    @staticmethod
+    def __radians_to_degrees(radians):
+        return radians * 180 / math.pi
+
+    # create "phantom" ball where cue ball makes contact with the target ball
+    def create_phantom_cue_ball(self):
+
+        # calculate gradient of line between pocket and target ball
+        gradient = - (self.pocket.position[1] - self.target_ball.position[1]) / \
+                   (self.pocket.position[0] - self.target_ball.position[0])
+        angle = math.atan(gradient)  # angle of gradient
+
+        # wizardry
+        if self.pocket.position[0] > self.target_ball.position[0]:
+            x = int(self.target_ball.position[0] - self.target_ball.radius * 2 * math.cos(angle))
+            y = int(self.target_ball.position[1] + self.target_ball.radius * 2 * math.sin(angle))
+        else:
+            x = int(self.target_ball.position[0] + self.target_ball.radius * 2 * math.cos(angle))
+            y = int(self.target_ball.position[1] - self.target_ball.radius * 2 * math.sin(angle))
+
+        return Ball("phantom_cue", x, y)
+
+
+class Colour:
+    CUE = (255, 255, 255)
+    SOLIDS = (255, 0, 0)
+    STRIPES = (0, 255, 0)
+    POCKET = (0, 0, 255)
 
 
 if __name__ == "__main__":
