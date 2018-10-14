@@ -16,15 +16,17 @@ class Table:
 
         for pocket in self.pockets:
             # show a red circle for each pocket
-            cv2.circle(output, pocket.position.tuple(), pocket.radius, Colour.POCKET, 2)
+            cv2.circle(output, pocket.position.tuple(), pocket.radius, Colour.POCKET, -1)
 
         for ball in self.balls:
             if ball.type == "solids":
                 colour = Colour.SOLIDS  # show a blue circle for a solids ball
             elif ball.type == "stripes":
                 colour = Colour.STRIPES  # show a green circle for a stripes ball
-            else:
+            elif ball.type == "cue":
                 colour = Colour.CUE  # show a white circle for any other ball type
+            else:
+                colour = Colour.EIGHT
 
             cv2.circle(output, ball.position.tuple(), ball.radius, colour, -1)
 
@@ -136,10 +138,9 @@ class Shot:
 
             # wizardry
             if Maths.distance(self.phantom_cue_ball.position, curr_ball.position) < self.phantom_cue_ball.radius + \
-                    curr_ball.radius:
-                return True
-            elif Maths.perpendicular_distance(self.cue_ball.position, self.phantom_cue_ball.position,
-                                            curr_ball.position) < self.cue_ball.radius + curr_ball.radius or \
+                    curr_ball.radius or \
+                    Maths.perpendicular_distance(self.cue_ball.position, self.phantom_cue_ball.position,
+                                                 curr_ball.position) < self.cue_ball.radius + curr_ball.radius or \
                     Maths.perpendicular_distance(self.target_ball.position, self.pocket.position,
                                                  curr_ball.position) < self.target_ball.radius + curr_ball.radius:
                 return True
@@ -188,10 +189,11 @@ class Maths:
 
 class Colour:
     CUE = (255, 255, 255)
-    SOLIDS = (255, 0, 0)
-    STRIPES = (0, 255, 0)
-    POCKET = (0, 0, 255)
-    RED = (0, 0, 255)
+    SOLIDS = (0, 0, 255)
+    STRIPES = (0, 255, 255)
+    POCKET = (10, 36, 72)
+    TABLE = (10, 108, 3)
+    EIGHT = (0, 0, 0)
 
 
 if __name__ == "__main__":
@@ -199,6 +201,7 @@ if __name__ == "__main__":
 
     while True:
         image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
+        image[:] = Colour.TABLE
         table = Table(image)
 
         # add pockets to table
@@ -211,10 +214,17 @@ if __name__ == "__main__":
 
         # add balls to table at random location
         table.balls.append(Ball("cue", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("eight", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
         table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
