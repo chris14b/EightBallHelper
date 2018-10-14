@@ -31,12 +31,12 @@ class Table:
         shot = self.__calculate_best_shot(ball_type)  # determine the best shot
 
         if shot:
-            phantom_cue_ball = shot.create_phantom_cue_ball()  # location of cue ball when it hits target ball
-            cv2.circle(output, phantom_cue_ball.position.tuple(), phantom_cue_ball.radius, Colour.CUE, 1)
+            cv2.circle(output, shot.phantom_cue_ball.position.tuple(), shot.phantom_cue_ball.radius, Colour.CUE, 1)
 
             # show ball trajectories
-            cv2.line(output, shot.cue_ball.position.tuple(), phantom_cue_ball.position.tuple(), Colour.CUE)
+            cv2.line(output, shot.cue_ball.position.tuple(), shot.phantom_cue_ball.position.tuple(), Colour.CUE)
             cv2.line(output, shot.target_ball.position.tuple(), shot.pocket.position.tuple(), Colour.CUE)
+
         else:
             cv2.putText(output, "No good shots available", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, Colour.RED)
 
@@ -69,9 +69,9 @@ class Table:
                 continue
 
             for pocket in self.pockets:
-                shot = Shot(cue_ball, target_ball, pocket)
+                shot = Shot(cue_ball, target_ball, pocket, self.balls)
 
-                if shot.angle < 90:  # it's impossible to hit a ball at an angle of greater than 90 degrees
+                if shot.possible:  # it's impossible to hit a ball at an angle of greater than 90 degrees
                     possible_shots.append(shot)  # add shot to array
 
         return possible_shots
@@ -93,32 +93,58 @@ class Pocket:
 
 
 class Shot:
-    def __init__(self, cue_ball, target_ball, pocket):
+    def __init__(self, cue_ball, target_ball, pocket, all_balls):
         self.cue_ball = cue_ball
         self.target_ball = target_ball
         self.pocket = pocket
+        self.all_balls = all_balls
+        self.phantom_cue_ball = self.__create_phantom_cue_ball()
 
         # use cosine rule to calculate the angle the target ball must deviate to land in a pocket
-        self.angle = 180 - Maths.angle_between_points(self.target_ball.position, self.cue_ball.position,
-                                                      self.pocket.position)
+        self.angle = math.pi - Maths.angle_between_points(self.phantom_cue_ball.position, self.cue_ball.position,
+                                                          self.pocket.position)
+
+        # a shot is not possible if the ball trajectories are obscured, or if the angle is greater than 90 degrees
+        self.possible = self.angle < math.pi / 2 and not self.__shot_obscured()
 
     # create "phantom" ball where cue ball makes contact with the target ball
-    def create_phantom_cue_ball(self):
+    def __create_phantom_cue_ball(self):
+        run = self.pocket.position.x - self.target_ball.position.x
 
-        # calculate gradient of line between pocket and target ball
-        gradient = - (self.pocket.position.y - self.target_ball.position.y) / \
-                   (self.pocket.position.x - self.target_ball.position.x)
-        angle = math.atan(gradient)  # angle of gradient
+        if run != 0:
+            # calculate gradient of line between pocket and target ball
+            gradient = - (self.pocket.position.y - self.target_ball.position.y) / run
+            angle = math.atan(gradient)  # angle of gradient
+        else:
+            angle = math.pi / 2
 
         # wizardry
         if self.pocket.position.x > self.target_ball.position.x:
-            x = int(self.target_ball.position.x - self.target_ball.radius * 2 * math.cos(angle))
-            y = int(self.target_ball.position.y + self.target_ball.radius * 2 * math.sin(angle))
+            x = self.target_ball.position.x - self.target_ball.radius * 2 * math.cos(angle)
+            y = self.target_ball.position.y + self.target_ball.radius * 2 * math.sin(angle)
         else:
-            x = int(self.target_ball.position.x + self.target_ball.radius * 2 * math.cos(angle))
-            y = int(self.target_ball.position.y - self.target_ball.radius * 2 * math.sin(angle))
+            x = self.target_ball.position.x + self.target_ball.radius * 2 * math.cos(angle)
+            y = self.target_ball.position.y - self.target_ball.radius * 2 * math.sin(angle)
 
         return Ball("phantom_cue", Point(x, y))
+
+    # determine whether ball trajectories are obscured by other balls
+    def __shot_obscured(self):
+        for curr_ball in self.all_balls:
+            if curr_ball in [self.cue_ball, self.target_ball]:
+                continue
+
+            # wizardry
+            if Maths.distance(self.phantom_cue_ball.position, curr_ball.position) < self.phantom_cue_ball.radius + \
+                    curr_ball.radius:
+                return True
+            elif Maths.perpendicular_distance(self.cue_ball.position, self.phantom_cue_ball.position,
+                                            curr_ball.position) < self.cue_ball.radius + curr_ball.radius or \
+                    Maths.perpendicular_distance(self.target_ball.position, self.pocket.position,
+                                                 curr_ball.position) < self.target_ball.radius + curr_ball.radius:
+                return True
+
+        return False
 
 
 class Point:
@@ -127,13 +153,13 @@ class Point:
         self.y = y
 
     def tuple(self):
-        return self.x, self.y
+        return int(self.x), int(self.y)
 
 
 class Maths:
     # calculate distance between two points
     @staticmethod
-    def calculate_distance(position1, position2):
+    def distance(position1, position2):
         return math.sqrt((position1.x - position2.x) ** 2 + (position1.y - position2.y) ** 2)
 
     @staticmethod
@@ -143,10 +169,21 @@ class Maths:
     # given points a, b and c, returns angle at c using the cosine rule
     @staticmethod
     def angle_between_points(target, far1, far2):
-        a = Maths.calculate_distance(target, far1)
-        b = Maths.calculate_distance(target, far2)
-        c = Maths.calculate_distance(far1, far2)
-        return Maths.radians_to_degrees(math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)))
+        a = Maths.distance(target, far1)
+        b = Maths.distance(target, far2)
+        c = Maths.distance(far1, far2)
+        return math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b))
+
+    # perpendicular distance between other_point and a line created by points line_point1 and line_point2
+    @staticmethod
+    def perpendicular_distance(line_point1, line_point2, other_point):
+        angle = Maths.angle_between_points(line_point1, line_point2, other_point)
+        distance = Maths.distance(line_point1, other_point)
+
+        if angle < math.pi / 2 and math.fabs(distance * math.cos(angle)) <= Maths.distance(line_point1, line_point2):
+            return math.fabs(distance * math.sin(angle))
+        else:
+            return math.inf
 
 
 class Colour:
@@ -160,26 +197,27 @@ class Colour:
 if __name__ == "__main__":
     # Eventually, we want to actually read in an image at find its features. But this will do for now.
 
-    image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
-    table = Table(image)
+    while True:
+        image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
+        table = Table(image)
 
-    # add pockets to table
-    table.pockets.append(Pocket(Point(100, 100)))
-    table.pockets.append(Pocket(Point(400, 100)))
-    table.pockets.append(Pocket(Point(700, 100)))
-    table.pockets.append(Pocket(Point(100, 500)))
-    table.pockets.append(Pocket(Point(400, 500)))
-    table.pockets.append(Pocket(Point(700, 500)))
+        # add pockets to table
+        table.pockets.append(Pocket(Point(100, 100)))
+        table.pockets.append(Pocket(Point(400, 100)))
+        table.pockets.append(Pocket(Point(700, 100)))
+        table.pockets.append(Pocket(Point(100, 500)))
+        table.pockets.append(Pocket(Point(400, 500)))
+        table.pockets.append(Pocket(Point(700, 500)))
 
-    # add balls to table at random location
-    table.balls.append(Ball("cue", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-    table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        # add balls to table at random location
+        table.balls.append(Ball("cue", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
 
-    table.show_best_shot("solids")
+        table.show_best_shot("solids")
