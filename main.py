@@ -80,18 +80,18 @@ class Table:
 
 
 class Ball:
-    def __init__(self, _type, position):
+    def __init__(self, _type, position, radius=10):
         assert _type in ["cue", "eight", "solids", "stripes", "phantom_cue"]
 
         self.type = _type
         self.position = position
-        self.radius = 10
+        self.radius = radius
 
 
 class Pocket:
-    def __init__(self, position):
+    def __init__(self, position, radius=20):
         self.position = position
-        self.radius = 20
+        self.radius = radius
 
 
 class Shot:
@@ -194,6 +194,7 @@ class Colour:
     POCKET = (10, 36, 72)
     TABLE = (10, 108, 3)
     EIGHT = (0, 0, 0)
+    RED = (0, 0, 255)
 
 
 if __name__ == "__main__":
