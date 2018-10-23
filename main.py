@@ -4,7 +4,6 @@ import numpy as np
 from random import randint
 import sys
 
-
 class Table:
     def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
                  eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7,
@@ -176,6 +175,18 @@ class Table:
         else:
             return "stripes"
 
+    # check whether a ball overlaps with other balls on the table
+    def is_overlapping(self, new_ball):
+        for curr_ball in self.balls:
+            if Maths.distance(new_ball.position, curr_ball.position) <= curr_ball.radius*2:
+                return True
+        return False
+
+    def add_ball(self, type):
+        new_ball = Ball(type, Point(150 + randint(0, 500), 150 + randint(0, 300)))
+        while table.is_overlapping(new_ball) == True:
+            new_ball.position = Point(150 + randint(0, 500), 150 + randint(0, 300))
+        table.balls.append(new_ball)
 
 class Ball:
     def __init__(self, _type, position, radius=10):
@@ -246,6 +257,7 @@ class Shot:
         return False
 
 
+
 class Point:
     def __init__(self, x, y):
         self.x = float(x)
@@ -286,6 +298,7 @@ class Maths:
             return math.inf
 
 
+
 class Colour:
     CUE = (255, 255, 255)
     SOLIDS = (0, 0, 255)
@@ -313,23 +326,12 @@ if __name__ == "__main__":
             table.pockets.append(Pocket(Point(700, 500)))
 
             # add balls to table at random location
-            table.balls.append(Ball("cue", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("eight", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.add_ball("cue")
 
+            for ball in range(7):    
+                table.add_ball("solids")
+                table.add_ball("stripes")
+                
             table.calculate_best_shot("solids")
             table.show_best_shot()
     else:
