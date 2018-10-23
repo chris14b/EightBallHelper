@@ -14,8 +14,8 @@ def isGrey(hsvPixel):
 # take in the image then put all pixels in 1 array
 def findTableHue(hsv):
     counts = np.zeros(256)
-    for i in range(w_mask):
-        for j in range(h_mask):
+    for i in range(hsv.shape[0]):
+        for j in range(hsv.shape[1]):
             if not isGrey(hsv[i][j]):
                 counts[hsv[i][j][0]] += 1
 
@@ -38,9 +38,30 @@ def findTableHue(hsv):
 
     return isFeltHue
 
+def getNoFeltMask(image):
+
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    isFeltHue = findTableHue(hsv)
+
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            if isFeltHue[hsv[i][j][0]] or hsv[i][j][0] == 0:
+                hsv[i][j][2] = 0
+            else:
+                hsv[i][j][2] = 255
+
+    mask = hsv[:,:,2]
+
+    kernel = np.ones((5,5),np.uint8)
+    mask = cv2.medianBlur(mask, 5)
+    mask = cv2.erode(mask, kernel,iterations = 1)
+    mask = cv2.dilate(mask, kernel,iterations = 1)
+
+    return mask
+
 # scales the image down, gets the mask based on felt hue, smooths it, fills it,
 # scales it back to the original size, then returns it
-def getMask(image):
+def getTableMask(image):
 
     smaller = cv2.resize(image, (h_mask, w_mask))
     hsv = cv2.cvtColor(smaller, cv2.COLOR_BGR2HSV)
@@ -91,8 +112,8 @@ def getMask(image):
 
     return mask
 
-def getMasked(image):
-    mask = getMask(image)
+def geTableTop(image):
+    mask = getTableMask(image)
     masked = cv2.bitwise_and(image, image, mask=mask)
     return masked
 
@@ -229,21 +250,7 @@ def getCorners(image):
     ]
 
     return corners
-    # print(corners)
-    #
-    # masked = cv2.bitwise_and(image, image, mask=mask)
-    #
-    # cv2.line(masked,corners[0],corners[1],(0,0,255),2)
-    # cv2.line(masked,corners[1],corners[2],(0,0,255),2)
-    # cv2.line(masked,corners[2],corners[3],(0,0,255),2)
-    # cv2.line(masked,corners[3],corners[0],(0,0,255),2)
-    #
-    #
-    # cv2.imshow("1", image)
-    # cv2.imshow("3", masked)
-    # cv2.waitKey()
 
-# def orderCorners
 
 def projectiveTransform(image):
 
@@ -265,21 +272,30 @@ def projectiveTransform(image):
 
     return warped
 
+
+# makes less saturated pixels appear even greyer, and more
+# saturated pixels more saturated
+def contrastSaturations(image):
+    hls = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
+
+    for i in range(len(hls)):
+        for j in range(len(hls[i])):
+            sat = sigmoid((hls[i][j][2]-150.0)/40.0)
+            hls[i][j][2] = 255.0 * sat
+
+    return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR)
+
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
+
 if __name__ == "__main__":
     # First command line argument will be the file name of image. If none is supplied, generate random table
 
+    img = cv2.imread(sys.argv[1])
+    tableTop = geTableTop(img)
+    onlyBalls = getNoFeltMask(tableTop)
 
-    cap = cv2.VideoCapture(sys.argv[1])
-
-    while(cap.isOpened()):
-        ret, frame = cap.read()
-
-        smaller = cv2.resize(frame, (800, 500))
-        warped = getMasked(smaller)
-
-        cv2.imshow('frame', warped)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+    cv2.imshow("1", img)
+    cv2.imshow("2", tableTop)
+    cv2.imshow("3", onlyBalls)
+    cv2.waitKey()
