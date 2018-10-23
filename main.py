@@ -7,7 +7,8 @@ import sys
 
 class Table:
     def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
-                 eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7):
+                 eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7,
+                 hough_param1=60, hough_param2=30):
         self.__image = _image
         self.balls = []
         self.pockets = []
@@ -17,6 +18,8 @@ class Table:
         self.__radius_threshold = radius_threshold  # number between ball radius and pocket radius
         self.__cue_ball_threshold = cue_ball_threshold  # brightness cue ball is above
         self.__eight_ball_threshold = eight_ball_threshold  # brightness eight ball is below
+        self.__hough_param1 = hough_param1
+        self.__hough_param2 = hough_param2
 
         # amount of white a ball needs to be considered stripes
         self.__white_pixel_ratio_threshold = white_pixel_ratio_threshold
@@ -101,7 +104,8 @@ class Table:
     # detect circles (ie balls and pockets) in image
     def find_circles_in_image(self):
         gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
-        circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, self.__min_ball_radius * 1.5, param1=60, param2=30,
+        circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, self.__min_ball_radius * 1.5,
+                                   param1=self.__hough_param1, param2=self.__hough_param2,
                                    minRadius=self.__min_ball_radius, maxRadius=self.__max_pocket_radius)
 
         if circles is None:
@@ -333,7 +337,8 @@ if __name__ == "__main__":
 
         if sys.argv[1] == "table_2.jpg":
             table = Table(image, min_ball_radius=11, max_pocket_radius=30, cue_ball_threshold=220,
-                          eight_ball_threshold=40, white_pixel_ratio_threshold=0.2, black_pixel_ratio_threshold=0.31)
+                          eight_ball_threshold=40, white_pixel_ratio_threshold=0.2, black_pixel_ratio_threshold=0.31,
+                          hough_param1=60, hough_param2=27)
         else:
             table = Table(image)
 
