@@ -85,9 +85,11 @@ class Table:
     def find_circles_in_image(self):
         gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
         circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, 10, param1=50, param2=30, minRadius=8, maxRadius=30)
+
+        if circles is None:
+            return
+
         circles = np.uint16(np.around(circles))
-        # output = self.__image
-        self.balls.append(Ball("cue", Point(400, 200), radius=15))
 
         for circle in circles[0, :]:
             position = Point(circle[0], circle[1])
@@ -95,7 +97,7 @@ class Table:
             if circle[2] >= 20:
                 self.pockets.append(Pocket(position, radius=circle[2]))
             elif self.__point_on_table(position):
-                self.balls.append(Ball("solids", position, radius=circle[2]))
+                self.balls.append(Ball(self.__get_ball_type(circle), position, radius=circle[2]))
 
     # check if a given point is on the table by seeing if it lies within all six pockets
     def __point_on_table(self, point):
@@ -114,6 +116,32 @@ class Table:
             bottommost = max(bottommost, pocket.position.y)
 
         return leftmost < point.x < rightmost and topmost < point.y < bottommost
+
+    def __get_ball_type(self, circle):
+        x, y, radius = circle
+        x_min = x - radius
+        x_max = x + radius
+        y_min = y - radius
+        y_max = y + radius
+
+        grey_image = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
+        pixels = []
+
+        for i in range(x_min, x_max):
+            for j in range(y_min, y_max):
+                if Maths.distance(Point(x, y), Point(i, j)) <= radius:
+                    pixels.append(grey_image[j, i])
+
+        brightness = sum(pixels) / len(pixels)
+
+        if brightness > 240:
+            return "cue"
+        elif brightness > 160:
+            return "stripes"
+        elif brightness > 70:
+            return "solids"
+        else:
+            return "eight"
 
 
 class Ball:
@@ -211,7 +239,6 @@ class Maths:
         a = Maths.distance(target, far1)
         b = Maths.distance(target, far2)
         c = Maths.distance(far1, far2)
-        # print("     angle_between_points:", a, b, c)
         return math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b))
 
     # perpendicular distance between other_point and a line created by points line_point1 and line_point2
