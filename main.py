@@ -2,21 +2,22 @@ import math
 import cv2
 import numpy as np
 from random import randint
+import sys
 
 
 class Table:
     def __init__(self, _image):
-        self.image = _image
+        self.__image = _image
         self.balls = []
         self.pockets = []
 
     # show the table, including marked balls, pockets and best shot for a ball of type ball_type (eg solids)
     def show_best_shot(self, ball_type):
-        output = self.image
+        output = self.__image
 
         for pocket in self.pockets:
             # show a red circle for each pocket
-            cv2.circle(output, pocket.position.tuple(), pocket.radius, Colour.POCKET, -1)
+            cv2.circle(output, pocket.position.tuple(), pocket.radius, Colour.POCKET, 2)
 
         for ball in self.balls:
             if ball.type == "solids":
@@ -28,7 +29,7 @@ class Table:
             else:
                 colour = Colour.EIGHT
 
-            cv2.circle(output, ball.position.tuple(), ball.radius, colour, -1)
+            cv2.circle(output, ball.position.tuple(), ball.radius, colour, 2)
 
         shot = self.__calculate_best_shot(ball_type)  # determine the best shot
 
@@ -50,6 +51,8 @@ class Table:
         for ball in self.balls:
             if ball.type == "cue":
                 return ball
+
+        return None
 
     # return the shot with the least angle for a ball of type ball_type
     def __calculate_best_shot(self, ball_type):
@@ -77,6 +80,40 @@ class Table:
                     possible_shots.append(shot)  # add shot to array
 
         return possible_shots
+
+    # detect circles (ie balls and pockets) in image
+    def find_circles_in_image(self):
+        gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
+        circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, 10, param1=50, param2=30, minRadius=8, maxRadius=30)
+        circles = np.uint16(np.around(circles))
+        # output = self.__image
+        self.balls.append(Ball("cue", Point(400, 200), radius=15))
+
+        for circle in circles[0, :]:
+            position = Point(circle[0], circle[1])
+
+            if circle[2] >= 20:
+                self.pockets.append(Pocket(position, radius=circle[2]))
+            elif self.__point_on_table(position):
+                self.balls.append(Ball("solids", position, radius=circle[2]))
+
+    # check if a given point is on the table by seeing if it lies within all six pockets
+    def __point_on_table(self, point):
+        if len(self.pockets) < 6:
+            return None
+
+        leftmost = math.inf
+        rightmost = -1
+        topmost = math.inf
+        bottommost = -1
+
+        for pocket in self.pockets:
+            leftmost = min(leftmost, pocket.position.x)
+            rightmost = max(rightmost, pocket.position.x)
+            topmost = min(topmost, pocket.position.y)
+            bottommost = max(bottommost, pocket.position.y)
+
+        return leftmost < point.x < rightmost and topmost < point.y < bottommost
 
 
 class Ball:
@@ -128,7 +165,7 @@ class Shot:
             x = self.target_ball.position.x + self.target_ball.radius * 2 * math.cos(angle)
             y = self.target_ball.position.y - self.target_ball.radius * 2 * math.sin(angle)
 
-        return Ball("phantom_cue", Point(x, y))
+        return Ball("phantom_cue", Point(x, y), self.cue_ball.radius)
 
     # determine whether ball trajectories are obscured by other balls
     def __shot_obscured(self):
@@ -150,8 +187,8 @@ class Shot:
 
 class Point:
     def __init__(self, x, y):
-        self.x = x
-        self.y = y
+        self.x = float(x)
+        self.y = float(y)
 
     def tuple(self):
         return int(self.x), int(self.y)
@@ -161,7 +198,8 @@ class Maths:
     # calculate distance between two points
     @staticmethod
     def distance(position1, position2):
-        return math.sqrt((position1.x - position2.x) ** 2 + (position1.y - position2.y) ** 2)
+        result = math.sqrt((position1.x - position2.x) ** 2 + (position1.y - position2.y) ** 2)
+        return result
 
     @staticmethod
     def radians_to_degrees(radians):
@@ -173,6 +211,7 @@ class Maths:
         a = Maths.distance(target, far1)
         b = Maths.distance(target, far2)
         c = Maths.distance(far1, far2)
+        # print("     angle_between_points:", a, b, c)
         return math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b))
 
     # perpendicular distance between other_point and a line created by points line_point1 and line_point2
@@ -198,37 +237,42 @@ class Colour:
 
 
 if __name__ == "__main__":
-    # Eventually, we want to actually read in an image at find its features. But this will do for now.
+    # First command line argument will be the file name of image. If none is supplied, generate random table
+    if len(sys.argv) == 1:
+        while True:
+            image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
+            image[:] = Colour.TABLE
+            table = Table(image)
 
-    while True:
-        image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
-        image[:] = Colour.TABLE
+            # add pockets to table
+            table.pockets.append(Pocket(Point(100, 100)))
+            table.pockets.append(Pocket(Point(400, 100)))
+            table.pockets.append(Pocket(Point(700, 100)))
+            table.pockets.append(Pocket(Point(100, 500)))
+            table.pockets.append(Pocket(Point(400, 500)))
+            table.pockets.append(Pocket(Point(700, 500)))
+
+            # add balls to table at random location
+            table.balls.append(Ball("cue", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("eight", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+            table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
+
+            table.show_best_shot("solids")
+    else:
+        image = cv2.imread(sys.argv[1])
         table = Table(image)
-
-        # add pockets to table
-        table.pockets.append(Pocket(Point(100, 100)))
-        table.pockets.append(Pocket(Point(400, 100)))
-        table.pockets.append(Pocket(Point(700, 100)))
-        table.pockets.append(Pocket(Point(100, 500)))
-        table.pockets.append(Pocket(Point(400, 500)))
-        table.pockets.append(Pocket(Point(700, 500)))
-
-        # add balls to table at random location
-        table.balls.append(Ball("cue", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("eight", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("solids", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-        table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
-
+        table.find_circles_in_image()
         table.show_best_shot("solids")
