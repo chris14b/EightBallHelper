@@ -1,72 +1,99 @@
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import cv2
 
 w_mask = 400
 h_mask = 300
+HUE_WINDOW = 8
+HUE_MAX = 180 # open cv does this so it stays within a uint8
+
+GREY_SAT = 30
+BLACK_V = 40
+WHITE_V = 220
 
 def isGrey(hsvPixel):
-    return hsvPixel[1] < 20
+    return hsvPixel[1] < GREY_SAT
 
-# ---------------   GET THE FELT COLOR  ----------------------
-# take in the image then put all pixels in 1 array
-def findTableHue(hsv):
-    counts = np.zeros(256)
+def isBlackorWhite(hsvPixel):
+    BorW = (hsvPixel[2] < BLACK_V or hsvPixel[2] > WHITE_V)
+    return isGrey(hsvPixel) and BorW
+
+
+# ------------------------   GET THE FELT COLOR  --------------------------
+# assume that the most common hue in a give window is the felt hue
+def findFeltHueAutomatic(hsv, given):
+    if given != 'hsv':
+        trhow("error: findFeltHueAutomatic expects a hsv")
+
+    counts = np.zeros(HUE_MAX)
     for i in range(hsv.shape[0]):
         for j in range(hsv.shape[1]):
             if not isGrey(hsv[i][j]):
                 counts[hsv[i][j][0]] += 1
 
     # get hue  window for the felt
-    window_width = 10
     best = 0
     best_hue = 0
-    for h in range(256):
+    for h in range(HUE_MAX):
         count = 0
-        for w in range(window_width):
-            count += counts[(h+w) % 256]
+        for w in range(HUE_WINDOW):
+            count += counts[(h+w) % HUE_MAX]
         if count > best:
             best = count
             best_hue = h
 
+    # actual hue center is offset
+    return (best_hue + int(HUE_WINDOW/2)) % HUE_MAX
+
+
+# ----------------------  Felt hue array  -----------------------------
+# simply makes a lookup truth table for hue values
+def isFeltHueArray(hue):
+
     # set those
     isFeltHue = [False] * 256
-    for w in range(window_width):
-        isFeltHue[(best_hue + w) % 256] = True
+    for w in range(int(-HUE_WINDOW/2), int(HUE_WINDOW/2)):
+        isFeltHue[(hue + w + HUE_MAX) % HUE_MAX] = True
 
     return isFeltHue
 
-def getNoFeltMask(image):
 
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    isFeltHue = findTableHue(hsv)
+# -----------------------  Remove Felt Pixels  --------------------------
+# sets pixels with the felt hue to 0
+def getBalls(image, hue, given, tableMask):
 
-    for i in range(image.shape[0]):
-        for j in range(image.shape[1]):
-            if isFeltHue[hsv[i][j][0]] or hsv[i][j][0] == 0:
-                hsv[i][j][2] = 0
-            else:
+    if given != 'hsv':
+        throw("Error: getBalls only accepts hsv atm ")
+
+    hsv = image.copy()
+    isFeltHue = isFeltHueArray(hue)
+
+    for i in range(hsv.shape[0]):
+        for j in range(hsv.shape[1]):
+            if tableMask[i][j] and (not isFeltHue[hsv[i][j][0]] or isBlackorWhite(hsv[i][j])):
                 hsv[i][j][2] = 255
+            else:
+                hsv[i][j][2] = 0
 
     mask = hsv[:,:,2]
 
     kernel = np.ones((5,5),np.uint8)
-    mask = cv2.medianBlur(mask, 5)
     mask = cv2.erode(mask, kernel,iterations = 1)
     mask = cv2.dilate(mask, kernel,iterations = 1)
+    mask = cv2.medianBlur(mask, 5)
 
     return mask
 
 # scales the image down, gets the mask based on felt hue, smooths it, fills it,
 # scales it back to the original size, then returns it
-def getTableMask(image):
+def getTableMask(image, hue, given):
 
-    smaller = cv2.resize(image, (h_mask, w_mask))
-    hsv = cv2.cvtColor(smaller, cv2.COLOR_BGR2HSV)
+    if given != 'hsv':
+        throw("Error: getTableMask only accepts hsv atm ")
 
-    isFeltHue = findTableHue(hsv)
+    hsv = cv2.resize(image, (h_mask, w_mask))
+    isFeltHue = isFeltHueArray(hue)
 
     for i in range(w_mask):
         for j in range(h_mask):
@@ -112,7 +139,7 @@ def getTableMask(image):
 
     return mask
 
-def geTableTop(image):
+def getTableTop(image):
     mask = getTableMask(image)
     masked = cv2.bitwise_and(image, image, mask=mask)
     return masked
@@ -286,7 +313,7 @@ def contrastSaturations(image):
     return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR)
 
 def sigmoid(x):
-    return 1 / (1 + math.exp(-x))
+    return 1 / (1 + np.exp(-x))
 
 if __name__ == "__main__":
     # First command line argument will be the file name of image. If none is supplied, generate random table
@@ -295,7 +322,8 @@ if __name__ == "__main__":
     tableTop = geTableTop(img)
     onlyBalls = getNoFeltMask(tableTop)
 
+    # onlyBalls = cv2.bitwise_and(tableTop, onlyBalls)
+
     cv2.imshow("1", img)
-    cv2.imshow("2", tableTop)
     cv2.imshow("3", onlyBalls)
     cv2.waitKey()
