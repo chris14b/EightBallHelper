@@ -4,11 +4,12 @@ import numpy as np
 from random import randint
 import sys
 
+
 class Table:
     def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
                  eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7,
-                 hough_param1=60, hough_param2=30):
-        self.__image = _image
+                 hough_param1=60, hough_param2=30, max_image_width=1200, max_image_height=675):
+        self.__image = self.__resize_image(_image, max_image_width, max_image_height)
         self.balls = []
         self.pockets = []
         self.__best_shot = None
@@ -34,17 +35,17 @@ class Table:
             # show a red circle for each pocket
             cv2.circle(output, pocket.position.tuple(), pocket.radius, Colour.POCKET, 2)
 
-        for ball in self.balls:
-            if ball.type == "solids":
+        for _ball in self.balls:
+            if _ball.type == "solids":
                 colour = Colour.SOLIDS  # show a blue circle for a solids ball
-            elif ball.type == "stripes":
+            elif _ball.type == "stripes":
                 colour = Colour.STRIPES  # show a green circle for a stripes ball
-            elif ball.type == "cue":
+            elif _ball.type == "cue":
                 colour = Colour.CUE  # show a white circle for any other ball type
             else:
                 colour = Colour.EIGHT
 
-            cv2.circle(output, ball.position.tuple(), ball.radius, colour, 2)
+            cv2.circle(output, _ball.position.tuple(), _ball.radius, colour, 2)
 
         if self.__best_shot:
             cv2.circle(output, self.__best_shot.phantom_cue_ball.position.tuple(),
@@ -64,9 +65,9 @@ class Table:
 
     # return the ball object of the cue ball
     def __get_cue_ball(self):
-        for ball in self.balls:
-            if ball.type == "cue":
-                return ball
+        for _ball in self.balls:
+            if _ball.type == "cue":
+                return _ball
 
         return None
 
@@ -176,17 +177,42 @@ class Table:
             return "stripes"
 
     # check whether a ball overlaps with other balls on the table
-    def is_overlapping(self, new_ball):
+    def __is_overlapping(self, new_ball):
         for curr_ball in self.balls:
             if Maths.distance(new_ball.position, curr_ball.position) <= curr_ball.radius*2:
                 return True
         return False
 
-    def add_ball(self, type):
-        new_ball = Ball(type, Point(150 + randint(0, 500), 150 + randint(0, 300)))
-        while table.is_overlapping(new_ball) == True:
+    def add_ball(self, _type):
+        new_ball = Ball(_type, Point(150 + randint(0, 500), 150 + randint(0, 300)))
+
+        while self.__is_overlapping(new_ball):
             new_ball.position = Point(150 + randint(0, 500), 150 + randint(0, 300))
-        table.balls.append(new_ball)
+
+        self.balls.append(new_ball)
+
+    # resizes image to fit given dimensions
+    @staticmethod
+    def __resize_image(_image, max_width, max_height):
+        original_height = _image.shape[0]
+        original_width = _image.shape[1]
+
+        if original_height > max_height or original_width > max_width:
+            aspect_ratio = original_width / original_height
+
+            if aspect_ratio >= max_width / max_height:
+                width = max_width
+                height = width * _image.shape[0] / _image.shape[1]
+                resized_image = cv2.resize(_image, (int(width), int(height)))
+            else:
+                height = max_height
+                width = height * _image.shape[1] / _image.shape[0]
+                resized_image = cv2.resize(_image, (int(width), int(height)))
+        else:
+            return _image
+
+        return resized_image
+
 
 class Ball:
     def __init__(self, _type, position, radius=10):
@@ -257,7 +283,6 @@ class Shot:
         return False
 
 
-
 class Point:
     def __init__(self, x, y):
         self.x = float(x)
@@ -298,7 +323,6 @@ class Maths:
             return math.inf
 
 
-
 class Colour:
     CUE = (255, 255, 255)
     SOLIDS = (0, 0, 255)
@@ -337,7 +361,9 @@ if __name__ == "__main__":
     else:
         image = cv2.imread(sys.argv[1])
 
-        if sys.argv[1] == "table_2.jpg":
+        if sys.argv[1] == "table_1.jpg":
+            table = Table(image)
+        elif sys.argv[1] == "table_2.jpg":
             table = Table(image, min_ball_radius=11, max_pocket_radius=30, cue_ball_threshold=220,
                           eight_ball_threshold=40, white_pixel_ratio_threshold=0.2, black_pixel_ratio_threshold=0.31,
                           hough_param1=60, hough_param2=27)
