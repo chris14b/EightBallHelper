@@ -6,10 +6,17 @@ import sys
 
 
 class Table:
-    def __init__(self, _image):
+    def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
+                 eight_ball_threshold=70, white_pixel_ratio_threshold=0.07):
         self.__image = _image
         self.balls = []
         self.pockets = []
+        self.__min_ball_radius = min_ball_radius  # minimum radius of a ball in pixels
+        self.__max_pocket_radius = max_pocket_radius  # maximum radius of a pocket in pixels
+        self.__radius_threshold = radius_threshold
+        self.__cue_ball_threshold = cue_ball_threshold
+        self.__eight_ball_threshold = eight_ball_threshold
+        self.__white_pixel_ratio_threshold = white_pixel_ratio_threshold
 
     # show the table, including marked balls, pockets and best shot for a ball of type ball_type (eg solids)
     def show_best_shot(self, ball_type):
@@ -84,7 +91,8 @@ class Table:
     # detect circles (ie balls and pockets) in image
     def find_circles_in_image(self):
         gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
-        circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, 10, param1=50, param2=30, minRadius=8, maxRadius=30)
+        circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, self.__min_ball_radius * 1.5, param1=60, param2=30,
+                                   minRadius=self.__min_ball_radius, maxRadius=self.__max_pocket_radius)
 
         if circles is None:
             return
@@ -94,7 +102,7 @@ class Table:
         for circle in circles[0, :]:
             position = Point(circle[0], circle[1])
 
-            if circle[2] >= 20:
+            if circle[2] >= self.__radius_threshold:
                 self.pockets.append(Pocket(position, radius=circle[2]))
             elif self.__point_on_table(position):
                 self.balls.append(Ball(self.__get_ball_type(circle), position, radius=circle[2]))
@@ -126,22 +134,28 @@ class Table:
 
         grey_image = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
         pixels = []
+        num_white_pixels = 0
 
         for i in range(x_min, x_max):
             for j in range(y_min, y_max):
                 if Maths.distance(Point(x, y), Point(i, j)) <= radius:
-                    pixels.append(grey_image[j, i])
+                    curr_pixel = grey_image[j, i]
+                    pixels.append(curr_pixel)
+
+                    if curr_pixel > self.__cue_ball_threshold:
+                        num_white_pixels += 1
 
         brightness = sum(pixels) / len(pixels)
+        white_pixel_ratio = num_white_pixels / len(pixels)
 
-        if brightness > 240:
+        if brightness > self.__cue_ball_threshold:
             return "cue"
-        elif brightness > 160:
-            return "stripes"
-        elif brightness > 70:
+        elif brightness < self.__eight_ball_threshold:
+            return "eight"
+        elif white_pixel_ratio < self.__white_pixel_ratio_threshold:
             return "solids"
         else:
-            return "eight"
+            return "stripes"
 
 
 class Ball:
