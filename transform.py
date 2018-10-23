@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import cv2
 
-w_mask = 300
+w_mask = 400
 h_mask = 300
 
 def isGrey(hsvPixel):
@@ -42,7 +42,7 @@ def findTableHue(hsv):
 # scales it back to the original size, then returns it
 def getMask(image):
 
-    smaller = cv2.resize(image, (w_mask, h_mask))
+    smaller = cv2.resize(image, (h_mask, w_mask))
     hsv = cv2.cvtColor(smaller, cv2.COLOR_BGR2HSV)
 
     isFeltHue = findTableHue(hsv)
@@ -79,7 +79,16 @@ def getMask(image):
                 mask[i][j] = 255
 
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
+
+    # clean up the image post resize
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            if mask[i][j] < 40:
+                mask[i][j] = 0
+            else:
+                mask[i][j] = 255
     mask = cv2.medianBlur(mask, 3)
+
     return mask
 
 def getMasked(image):
@@ -91,7 +100,7 @@ def getMasked(image):
 def getLargestBlob(mask):
 
     # find the blobs with just the 4 connectivity ie up and left check
-    blobs = np.zeros((mask.shape[1], mask.shape[0]), np.uint16)
+    blobs = np.zeros((mask.shape[0], mask.shape[1]), np.uint16)
     curr_label = 1 # 0 is for no label
     label_equiv = [0]
     counts = [0]
@@ -151,48 +160,126 @@ def getLargestBlob(mask):
                 mask[i][j] = 0
     return mask
 
+# assumes rho theta form
+# from https://stackoverflow.com/questions/46565975/find-intersection-point-of-two-lines-drawn-using-houghlines-opencv
+def getIntersect(line1, line2):
+    rho1, theta1 = line1
+    rho2, theta2 = line2
+    A = np.array([
+        [np.cos(theta1), np.sin(theta1)],
+        [np.cos(theta2), np.sin(theta2)]
+    ])
+    b = np.array([[rho1], [rho2]])
+    x0, y0 = np.linalg.solve(A, b)
+    x0, y0 = int(np.round(x0)), int(np.round(y0))
+    return (x0, y0)
+
 def getCorners(image):
 
     mask = getMask(image)
-    masked = cv2.bitwise_and(image, image, mask=mask)
-
-    # --------------- get edges ---------------------
     edges = cv2.Canny(mask, 50, 50)
 
     # https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_houghlines/py_houghlines.html
     # return lines sorted by their match. take the best 4 that aren't too similar
 
-    lines = cv2.HoughLines(edges,1,np.pi/180,50)
+    lines = cv2.HoughLines(edges,1,np.pi/180,30)
     min_d_rho = 10
-    min_d_theta = 10
+    min_d_theta = 0.4
     savedLines = []
 
-    # get the best lines that aren't too close to eachother
+    # get the best 4 lines that aren't too close to eachother
     for line in lines:
         line = line[0]
         if len(savedLines) == 4:
             break
         too_close = False
         for saved in savedLines:
-            if abs(saved[0] - line[0]) < min_d_rho and abs(saved[1] - line[1]) < min_d_theta:
+            d_rho = abs(saved[0] - line[0])
+            d_theta = abs(saved[1] - line[1])
+            d_theta = min(d_theta, np.pi - d_theta)
+            if d_rho < min_d_rho and d_theta < min_d_theta:
                 too_close = True
         if not too_close:
             savedLines.append([line[0], line[1]])
 
-    for line in savedLines:
-        [rho, theta] = line
-        a = np.cos(theta)
-        b = np.sin(theta)
-        x0 = a*rho
-        y0 = b*rho
-        x1 = int(x0 + 1000*(-b))
-        y1 = int(y0 + 1000*(a))
-        x2 = int(x0 - 1000*(-b))
-        y2 = int(y0 - 1000*(a))
+    # find the most parllel lines
+    best_d_theta = np.pi
+    most_parallel = [False, False, False, False]
+    for i in range(4):
+        for j in range(i+1, 4):
+            if abs(savedLines[i][1] - savedLines[j][1]) < best_d_theta:
+                best_d_theta = abs(savedLines[i][1] - savedLines[j][1])
+                most_parallel = [False, False, False, False]
+                most_parallel[i] = True
+                most_parallel[j] = True
 
-        cv2.line(masked,(x1,y1),(x2,y2),(0,0,255),2)
+    linesA = []
+    linesB = []
+    for i in range(4):
+        if most_parallel[i]:
+            linesA.append(savedLines[i])
+        else:
+            linesB.append(savedLines[i])
+
+    corners = [
+        getIntersect(linesA[0], linesB[0]),
+        getIntersect(linesA[0], linesB[1]),
+        getIntersect(linesA[1], linesB[1]),
+        getIntersect(linesA[1], linesB[0])
+    ]
+
+    return corners
+    # print(corners)
+    #
+    # masked = cv2.bitwise_and(image, image, mask=mask)
+    #
+    # cv2.line(masked,corners[0],corners[1],(0,0,255),2)
+    # cv2.line(masked,corners[1],corners[2],(0,0,255),2)
+    # cv2.line(masked,corners[2],corners[3],(0,0,255),2)
+    # cv2.line(masked,corners[3],corners[0],(0,0,255),2)
+    #
+    #
+    # cv2.imshow("1", image)
+    # cv2.imshow("3", masked)
+    # cv2.waitKey()
+
+# def orderCorners
+
+def projectiveTransform(image):
+
+    corners = getCorners(image)
+
+    # get longest line:
+    longest = 0
+    for i in range(4):
+        for j in range(i+1, 4):
+            length = np.sqrt(pow(corners[i][0] - corners[j][0], 2) + pow(corners[i][1] - corners[j][1], 2))
+            if length > longest:
+                longest = length
+
+    oldCorners = np.array(corners, dtype = "float32")
+    newCorners = np.array([ [0, 0], [longest, 0], [longest, longest/2], [0, longest/2]], dtype = "float32")
+
+    projectionMatrix = cv2.getPerspectiveTransform(oldCorners, newCorners)
+    warped = cv2.warpPerspective(image, projectionMatrix, (int(longest), int(longest/2)))
+
+    return warped
+
+if __name__ == "__main__":
+    # First command line argument will be the file name of image. If none is supplied, generate random table
 
 
-    cv2.imshow("1", image)
-    cv2.imshow("3", masked)
-    cv2.waitKey()
+    cap = cv2.VideoCapture(sys.argv[1])
+
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+
+        smaller = cv2.resize(frame, (800, 500))
+        warped = getMasked(smaller)
+
+        cv2.imshow('frame', warped)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
