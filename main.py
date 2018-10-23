@@ -7,19 +7,25 @@ import sys
 
 class Table:
     def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
-                 eight_ball_threshold=70, white_pixel_ratio_threshold=0.07):
+                 eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7):
         self.__image = _image
         self.balls = []
         self.pockets = []
+        self.__best_shot = None
         self.__min_ball_radius = min_ball_radius  # minimum radius of a ball in pixels
         self.__max_pocket_radius = max_pocket_radius  # maximum radius of a pocket in pixels
-        self.__radius_threshold = radius_threshold
-        self.__cue_ball_threshold = cue_ball_threshold
-        self.__eight_ball_threshold = eight_ball_threshold
+        self.__radius_threshold = radius_threshold  # number between ball radius and pocket radius
+        self.__cue_ball_threshold = cue_ball_threshold  # brightness cue ball is above
+        self.__eight_ball_threshold = eight_ball_threshold  # brightness eight ball is below
+
+        # amount of white a ball needs to be considered stripes
         self.__white_pixel_ratio_threshold = white_pixel_ratio_threshold
 
-    # show the table, including marked balls, pockets and best shot for a ball of type ball_type (eg solids)
-    def show_best_shot(self, ball_type):
+        # amount of black a ball needs to be considered the eight ball
+        self.__black_pixel_ratio_threshold = black_pixel_ratio_threshold
+
+    # show the table, including marked balls, pockets and best shot if available
+    def show_best_shot(self):
         output = self.__image
 
         for pocket in self.pockets:
@@ -38,14 +44,15 @@ class Table:
 
             cv2.circle(output, ball.position.tuple(), ball.radius, colour, 2)
 
-        shot = self.__calculate_best_shot(ball_type)  # determine the best shot
-
-        if shot:
-            cv2.circle(output, shot.phantom_cue_ball.position.tuple(), shot.phantom_cue_ball.radius, Colour.CUE, 1)
+        if self.__best_shot:
+            cv2.circle(output, self.__best_shot.phantom_cue_ball.position.tuple(),
+                       self.__best_shot.phantom_cue_ball.radius, Colour.CUE, 1)
 
             # show ball trajectories
-            cv2.line(output, shot.cue_ball.position.tuple(), shot.phantom_cue_ball.position.tuple(), Colour.CUE)
-            cv2.line(output, shot.target_ball.position.tuple(), shot.pocket.position.tuple(), Colour.CUE)
+            cv2.line(output, self.__best_shot.cue_ball.position.tuple(),
+                     self.__best_shot.phantom_cue_ball.position.tuple(), Colour.CUE)
+            cv2.line(output, self.__best_shot.target_ball.position.tuple(),
+                     self.__best_shot.pocket.position.tuple(), Colour.CUE)
 
         else:
             cv2.putText(output, "No good shots available", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, Colour.RED)
@@ -62,13 +69,16 @@ class Table:
         return None
 
     # return the shot with the least angle for a ball of type ball_type
-    def __calculate_best_shot(self, ball_type):
+    def calculate_best_shot(self, ball_type):
+        if not self.__get_cue_ball():
+            return None
+
         possible_shots = self.__calculate_possible_shots(ball_type)
 
         if len(possible_shots) == 0:
             return None
 
-        return min(possible_shots, key=lambda p: p.angle)
+        self.__best_shot = min(possible_shots, key=lambda p: p.angle)
 
     # calculate all shots with an angle of less than 90 degree for a ball of type ball_type
     def __calculate_possible_shots(self, ball_type):
@@ -135,6 +145,7 @@ class Table:
         grey_image = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
         pixels = []
         num_white_pixels = 0
+        num_black_pixels = 0
 
         for i in range(x_min, x_max):
             for j in range(y_min, y_max):
@@ -144,13 +155,17 @@ class Table:
 
                     if curr_pixel > self.__cue_ball_threshold:
                         num_white_pixels += 1
+                    elif curr_pixel < self.__eight_ball_threshold:
+                        num_black_pixels += 1
 
-        brightness = sum(pixels) / len(pixels)
-        white_pixel_ratio = num_white_pixels / len(pixels)
+        num_pixels = len(pixels)
+        brightness = sum(pixels) / num_pixels
+        white_pixel_ratio = num_white_pixels / num_pixels
+        black_pixel_ratio = num_black_pixels / num_pixels
 
         if brightness > self.__cue_ball_threshold:
             return "cue"
-        elif brightness < self.__eight_ball_threshold:
+        elif black_pixel_ratio > self.__black_pixel_ratio_threshold:
             return "eight"
         elif white_pixel_ratio < self.__white_pixel_ratio_threshold:
             return "solids"
@@ -311,9 +326,17 @@ if __name__ == "__main__":
             table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
             table.balls.append(Ball("stripes", Point(150 + randint(0, 500), 150 + randint(0, 300))))
 
-            table.show_best_shot("solids")
+            table.calculate_best_shot("solids")
+            table.show_best_shot()
     else:
         image = cv2.imread(sys.argv[1])
-        table = Table(image)
+
+        if sys.argv[1] == "table_2.jpg":
+            table = Table(image, min_ball_radius=11, max_pocket_radius=30, cue_ball_threshold=220,
+                          eight_ball_threshold=40, white_pixel_ratio_threshold=0.2, black_pixel_ratio_threshold=0.31)
+        else:
+            table = Table(image)
+
         table.find_circles_in_image()
-        table.show_best_shot("solids")
+        table.calculate_best_shot("solids")
+        table.show_best_shot()
