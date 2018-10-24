@@ -24,7 +24,7 @@ def isBlackorWhite(hsvPixel):
 # assume that the most common hue in a give window is the felt hue
 def findFeltHueAutomatic(hsv, given):
     if given != 'hsv':
-        trhow("error: findFeltHueAutomatic expects a hsv")
+        throw("error: findFeltHueAutomatic expects a hsv")
 
     counts = np.zeros(HUE_MAX)
     for i in range(hsv.shape[0]):
@@ -140,7 +140,7 @@ def getTableMask(image, hue, given):
     return mask
 
 def getTableTop(image):
-    mask = getTableMask(image)
+    mask = getTableMask(image, findFeltHueAutomatic(image, 'hsv'), 'hsv')
     masked = cv2.bitwise_and(image, image, mask=mask)
     return masked
 

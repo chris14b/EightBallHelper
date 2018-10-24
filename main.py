@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from random import randint
 import sys
+import transform
 
 
 class Table:
@@ -104,6 +105,9 @@ class Table:
     # detect circles (ie balls and pockets) in image
     def find_circles_in_image(self):
         gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
+        hsv = cv2.cvtColor(self.__image, cv2.COLOR_BGR2HSV)
+        mask = transform.getTableMask(hsv, transform.findFeltHueAutomatic(hsv, 'hsv'), 'hsv')
+        gray_img = cv2.bitwise_and(gray_img, gray_img, mask=mask)
         circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, self.__min_ball_radius * 1.5,
                                    param1=self.__hough_param1, param2=self.__hough_param2,
                                    minRadius=self.__min_ball_radius, maxRadius=self.__max_pocket_radius)
@@ -367,9 +371,13 @@ if __name__ == "__main__":
             table = Table(image, min_ball_radius=11, max_pocket_radius=30, cue_ball_threshold=220,
                           eight_ball_threshold=40, white_pixel_ratio_threshold=0.2, black_pixel_ratio_threshold=0.31,
                           hough_param1=60, hough_param2=27)
+        elif sys.argv[1] == "8BallSampleFrame1.png":
+            table = Table(image, min_ball_radius=10,
+                          max_pocket_radius=30, radius_threshold=15, hough_param1=80, hough_param2=15)
         else:
             table = Table(image)
 
         table.find_circles_in_image()
         table.calculate_best_shot("solids")
+        print("Displaying image...")
         table.show_best_shot()
