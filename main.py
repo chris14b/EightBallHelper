@@ -10,7 +10,7 @@ class Table:
     def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
                  eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7,
                  hough_param1=60, hough_param2=30, max_image_width=1200, max_image_height=675):
-        self.__image = self.__resize_image(_image, max_image_width, max_image_height)
+        self.__image = self.resize_image(_image, max_image_width, max_image_height)
         self.balls = []
         self.pockets = []
         self.__best_shot = None
@@ -197,7 +197,7 @@ class Table:
 
     # resizes image to fit given dimensions
     @staticmethod
-    def __resize_image(_image, max_width, max_height):
+    def resize_image(_image, max_width=1200, max_height=675):
         original_height = _image.shape[0]
         original_width = _image.shape[1]
 
@@ -363,21 +363,55 @@ if __name__ == "__main__":
             table.calculate_best_shot("solids")
             table.show_best_shot()
     else:
-        image = cv2.imread(sys.argv[1])
+        file_path = sys.argv[1]
 
-        if sys.argv[1] == "table_1.jpg":
-            table = Table(image)
-        elif sys.argv[1] == "table_2.jpg":
-            table = Table(image, min_ball_radius=11, max_pocket_radius=30, cue_ball_threshold=220,
-                          eight_ball_threshold=40, white_pixel_ratio_threshold=0.2, black_pixel_ratio_threshold=0.31,
-                          hough_param1=60, hough_param2=27)
-        elif sys.argv[1] == "8BallSampleFrame1.png":
-            table = Table(image, min_ball_radius=10,
-                          max_pocket_radius=30, radius_threshold=15, hough_param1=80, hough_param2=15)
+        if sys.argv[1].endswith("m4v"):
+            video = cv2.VideoCapture(file_path)
+
+            success, frame = video.read()  # read first frame of video
+
+            if not success:
+                print("Failed to read video:", file_path)
+                sys.exit(1)
+
+            while success:
+                cv2.imshow("Output", frame)
+                key = cv2.waitKey(1) & 0xFF
+
+                if key:
+                    if key == 27:
+                        break
+                    elif 49 <= key <= 50:
+                        print("Loading best shot...")
+                        table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15,
+                                      hough_param1=10, hough_param2=20)
+                        table.find_circles_in_image()
+
+                        if key == 49:
+                            table.calculate_best_shot("solids")
+                        else:
+                            table.calculate_best_shot("stripes")
+
+                        print("Displaying best shot")
+                        table.show_best_shot()
+
+                success, frame = video.read()  # read video frame by frame
         else:
-            table = Table(image)
+            image = cv2.imread(file_path)
 
-        table.find_circles_in_image()
-        table.calculate_best_shot("solids")
-        print("Displaying image...")
-        table.show_best_shot()
+            if file_path == "table_1.jpg":
+                table = Table(image)
+            elif file_path == "table_2.jpg":
+                table = Table(image, min_ball_radius=11, max_pocket_radius=30, cue_ball_threshold=220,
+                              eight_ball_threshold=40, white_pixel_ratio_threshold=0.2,
+                              black_pixel_ratio_threshold=0.31, hough_param1=60, hough_param2=27)
+            elif file_path == "8BallSampleFrame1.png":
+                table = Table(image, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15, hough_param1=10,
+                              hough_param2=20)
+            else:
+                table = Table(image)
+
+            table.find_circles_in_image()
+            table.calculate_best_shot("solids")
+            print("Displaying image...")
+            table.show_best_shot()
