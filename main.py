@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from random import randint
 import sys
-import transform
+import thresholding
 
 
 class Table:
@@ -104,26 +104,34 @@ class Table:
 
     # detect circles (ie balls and pockets) in image
     def find_image_features(self):
-        gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
-        hsv = cv2.cvtColor(self.__image, cv2.COLOR_BGR2HSV)
-        mask = transform.getTableMask(hsv, transform.findFeltHueAutomatic(hsv, 'hsv'), 'hsv')
-        gray_img = cv2.bitwise_and(gray_img, gray_img, mask=mask)
-        circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, self.__min_ball_radius * 1.5,
-                                   param1=self.__hough_param1, param2=self.__hough_param2,
-                                   minRadius=self.__min_ball_radius, maxRadius=self.__max_pocket_radius)
+        # gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
+        # hsv = cv2.cvtColor(self.__image, cv2.COLOR_BGR2HSV)
+        # mask = transform.getTableMask(hsv, transform.findFeltHueAutomatic(hsv, 'hsv'), 'hsv')
+        # gray_img = cv2.bitwise_and(gray_img, gray_img, mask=mask)
+        # circles = cv2.HoughCircles(gray_img, cv2.HOUGH_GRADIENT, 1, self.__min_ball_radius * 1.5,
+        #                            param1=self.__hough_param1, param2=self.__hough_param2,
+        #                            minRadius=self.__min_ball_radius, maxRadius=self.__max_pocket_radius)
+        #
+        # if circles is None:
+        #     return
+        #
+        # circles = np.uint16(np.around(circles))
+        #
+        # for circle in circles[0, :]:
+        #     position = Point(circle[0], circle[1])
+        #
+        #     if circle[2] >= self.__radius_threshold:
+        #         self.pockets.append(Pocket(position, radius=circle[2]))
+        #     elif self.__point_on_table(position):
+        #         self.balls.append(Ball(self.__get_ball_type(circle), position, radius=circle[2]))
 
-        if circles is None:
-            return
+        balls, pockets = thresholding.getBallsAndPockets(self.__image)
 
-        circles = np.uint16(np.around(circles))
+        for _ball in balls:
+            self.balls.append(Ball(self.__get_ball_type(_ball), Point(_ball[0], _ball[1]), radius=_ball[2]))
 
-        for circle in circles[0, :]:
-            position = Point(circle[0], circle[1])
-
-            if circle[2] >= self.__radius_threshold:
-                self.pockets.append(Pocket(position, radius=circle[2]))
-            elif self.__point_on_table(position):
-                self.balls.append(Ball(self.__get_ball_type(circle), position, radius=circle[2]))
+        for _pocket in pockets:
+            self.pockets.append(Pocket(Point(_pocket[0], _pocket[1]), radius=_pocket[2]))
 
     # check if a given point is on the table by seeing if it lies within all six pockets
     def __point_on_table(self, point):
@@ -388,8 +396,9 @@ if __name__ == "__main__":
                                 2)
                     cv2.imshow("Output", stillFrame)
                     cv2.waitKey(1)
-                    table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15,
-                                  hough_param1=10, hough_param2=20)
+                    table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15, hough_param1=10,
+                                  hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=140,
+                                  black_pixel_ratio_threshold=0.9, eight_ball_threshold=70)
                     table.find_image_features()
 
                     if key == 49:  # if key is 1
@@ -412,7 +421,8 @@ if __name__ == "__main__":
                               black_pixel_ratio_threshold=0.31, hough_param1=60, hough_param2=27)
             elif file_path == "8BallSampleFrame1.png":
                 table = Table(image, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15, hough_param1=10,
-                              hough_param2=20)
+                              hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=140,
+                              black_pixel_ratio_threshold=0.9, eight_ball_threshold=70)
             else:
                 table = Table(image)
 
