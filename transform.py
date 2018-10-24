@@ -150,14 +150,6 @@ def getTableMask(image, hue, given):
 
     return mask
 
-# ----------------------- Maybe do this yourself...  --------------------------
-# scales the image down, gets the mask based on felt hue, smooths it, fills it,
-# def getTableTop(image):
-#     mask = getTableMask(image)
-#     masked = cv2.bitwise_and(image, image, mask=mask)
-#     return masked
-
-
 # -------------------- Blob detection and largest blob  -----------------------
 # takes in a thresholded image, setting largest blob to having 255 values, 0 elsewhere
 def getLargestBlob(mask):
@@ -350,6 +342,7 @@ def normaliseSatAndVal(inHsv, mask, given):
     scaleS = 255.0/(maxS - minS)
     for i in range(len(hsv)):
         for j in range(len(hsv[i])):
+
             if not mask[i][j]:
                 continue
             hsv[i][j][2] = (hsv[i][j][2] - minV) * scaleV
@@ -361,29 +354,17 @@ def normaliseSatAndVal(inHsv, mask, given):
 # --------------- Increase the contrast of saturation values -------------------
 # makes less saturated pixels appear even greyer, and more saturated pixels more saturated
 # Warning: a bit expensive
-def contrastSaturations(inHsv):
+def contrastSaturations(inHsv, mask, given):
+
+    if given != 'hsv':
+        throw("Error: getBalls only accepts hsv atm ")
 
     hsv = inHsv.copy()
     for i in range(len(hsv)):
         for j in range(len(hsv[i])):
 
-             # make saturated pixels even more so, and less saturated less so
-            S = sigmoid((hsv[i][j][1]-100.0)/30.0)
-            hsv[i][j][1] = 255.0 * S
+            if mask[i][j]:
+                rescaled = (hsv[i][j][1]-100.0)/30.0
+                hsv[i][j][1] = 255.0 * 1 / (1 + np.exp(-rescaled))
+
     return hsv
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-# if __name__ == "__main__":
-    # First command line argument will be the file name of image. If none is supplied, generate random table
-
-    # img = cv2.imread(sys.argv[1])
-    # tableTop = geTableTop(img)
-    # onlyBalls = getNoFeltMask(tableTop)
-
-    # onlyBalls = cv2.bitwise_and(tableTop, onlyBalls)
-
-    # cv2.imshow("1", img)
-    # cv2.imshow("3", onlyBalls)
-    # cv2.waitKey()

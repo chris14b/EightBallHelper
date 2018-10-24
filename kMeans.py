@@ -5,41 +5,50 @@ from sklearn.mixture import GaussianMixture
 import cv2
 import transform
 
+
 # take in the image then put all pixels in 1 array
 initial = cv2.imread(sys.argv[1])
 img = cv2.resize(initial, (600, 400))
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+
+# testing hsv image
+for i in range(180):
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    isFeltHue = transform.isFeltHueArray(i)
+    for i in range(len(hsv)):
+        for j in range(len(hsv[i])):
+            if isFeltHue[hsv[i][j][0]]:
+                hsv[i][j][2] = 0
+    im2 = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    cv2.imshow("1", im2)
+    cv2.waitKey()
+
+sys.exit()
 
 feltHue  = transform.findFeltHueAutomatic(hsv, 'hsv')
 isFeltHue = transform.isFeltHueArray(feltHue)
 isTable  = transform.getTableMask(hsv, feltHue, 'hsv')
 
 hsv = transform.normaliseSatAndVal(hsv, isTable, 'hsv')
-hsv = transform.contrastSaturations(hsv)
+hsv = transform.contrastSaturations(hsv, isTable, 'hsv')
 
-new = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
 # gets the canny edges of the images
 canny =  cv2.Canny(img, 200, 80)
 canny = cv2.bitwise_and(canny, canny, mask=isTable)
 
-# try for different radii. This is all hacky
-num = 20
-min = 4
-while num > 15 and min < 10:
-    min += 1
-    circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, min-1,
-                            param1=100,param2=4,minRadius=min,maxRadius=min+2)
-    print(circles)
-    num = len(circles[0])
+circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 2,
+                             param1=50,param2=5,minRadius=2,maxRadius=20)
 
-min -= 1
-circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, min-1,
-                        param1=50,param2=4,minRadius=min,maxRadius=min+2)
+radius = int(np.median(circles[0,:10,2]))
+
+circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
+                        param1=50,param2=3,minRadius=radius-1,maxRadius=radius+1)
 
 circles = np.uint16(np.around(circles))
 
-median = int(np.mean(circles[:,:,2]))
 # print circles
 for i in circles[0,:]:
     # draw the outer circle
