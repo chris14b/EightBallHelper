@@ -48,6 +48,9 @@ cv2.line(img, corners[3], corners[0], (100,100,200), 2)
 for i in circles:
     # draw the outer circle
     cv2.circle(img,(i[0],i[1]),i[2]+1,(255,255,0),1)
+    
+    cv2.imshow("1", img)
+    cv2.waitKey()
 
 
 cv2.imshow("1", img)
