@@ -4,20 +4,14 @@ import cv2
 
 w_mask = 400
 h_mask = 300
-HUE_WINDOW = 8
-HUE_MAX = 180 # open cv does this so it stays within a uint8
 
-GREY_SAT = 60
-BLACK_V = 60
-WHITE_V = 220
+HUE_MAX = 180    # open cv does this so it stays within a uint8
+HUE_WINDOW = 10
+
+GREY_SAT = 50
 
 def isGrey(hsvPixel):
     return hsvPixel[1] < GREY_SAT
-
-def isBlackorWhite(hsvPixel):
-    BorW = (hsvPixel[2] < BLACK_V or hsvPixel[2] > WHITE_V)
-    return isGrey(hsvPixel) and BorW
-
 
 # ------------------------   GET THE FELT COLOR  --------------------------
 # assume that the most common hue in a give window is the felt hue
@@ -58,41 +52,16 @@ def isFeltHueArray(hue):
     return isFeltHue
 
 
-# -----------------------  Remove Felt Pixels  --------------------------
-# sets pixels with the felt hue to 0
-# I don't like this
-# def getBalls(image, hue, given, tableMask):
-#
-#     if given != 'hsv':
-#         throw("Error: getBalls only accepts hsv atm ")
-#
-#     hsv = image.copy()
-#     isFeltHue = isFeltHueArray(hue)
-#
-#     for i in range(hsv.shape[0]):
-#         for j in range(hsv.shape[1]):
-#             validColor = (not isFeltHue[hsv[i][j][0]] and not isGrey(hsv[i][j]))
-#             if tableMask[i][j] and (validColor or isBlackorWhite(hsv[i][j])):
-#                 hsv[i][j][2] = 255
-#             else:
-#                 hsv[i][j][2] = 0
-#
-#     mask = hsv[:,:,2]
-#     mask = cv2.medianBlur(mask, 5)
-#     mask = cv2.medianBlur(mask, 5)
-#
-#     return mask
-
-
-
-
-def getCircles(img, mask, given):
+# ----------------------  Find the circles/balls  -----------------------------
+# assumes the size of the balls don't change too much
+# also assumes that the best matches are balls...
+def getCircles(img, mask, radius, given):
 
     if given != 'bgr':
         throw("Error: getCircles only accepts bgr atm ")
 
     # gets the canny edges of the images
-    canny =  cv2.Canny(img, 150, 80)
+    canny = cv2.Canny(img, 100, 80)
     canny = cv2.bitwise_and(canny, canny, mask=mask)
 
     # cv2.imshow("pre", canny)
@@ -100,24 +69,46 @@ def getCircles(img, mask, given):
     kernel = np.ones((3,3),np.uint8)
     smoothed = cv2.dilate(canny, kernel,iterations = 1)
     smoothed = cv2.medianBlur(smoothed, 3)
-    for i in range(canny.shape[0]):
-        for j in range(canny.shape[1]):
-            canny[i][j] = 0.5 * canny[i][j] + 0.5 * smoothed[i][j]
+
+    avg = np.add(canny/2, smoothed/2)
+    avg = np.array(avg, dtype=np.uint8)
 
     # cv2.imshow("post", canny)
 
-    # run the algorithm with many radii to try find the best match
-    circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 2,
-                                 param1=50,param2=10,minRadius=3,maxRadius=20)
-
-    #run it again get the median radius of the top 5 circles to use next
-    radius = int(np.median(circles[0,:5,2]))+1
-    circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
+    circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
 
     circles = np.uint16(np.around(circles))
 
     return circles[0]
+
+# -------------------- Automatic ball radius finder  -----------------------------
+# assumes the size of the balls don't change too much
+# also assumes there are a few balls to get the median of
+def findBallRadiusAutomatic(img, mask, given):
+
+    if given != 'bgr':
+        throw("Error: getCircles only accepts bgr atm ")
+
+    # gets the canny edges of the images
+    canny =  cv2.Canny(img, 100, 80)
+    canny = cv2.bitwise_and(canny, canny, mask=mask)
+
+    kernel = np.ones((3,3),np.uint8)
+    smoothed = cv2.dilate(canny, kernel,iterations = 1)
+    smoothed = cv2.medianBlur(smoothed, 3)
+
+    avg = np.add(smoothed/2, canny/2)
+    avg = np.array(avg, dtype=np.uint8)
+
+    # run the algorithm with many radii to try find the best match
+    circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 2,
+                                 param1=50,param2=10,minRadius=5,maxRadius=20)
+
+    #run it again get the median radius of the top 5 circles to use next
+    radius = int(np.median(circles[0,:5,2])) + 1 # err on the side of larger
+
+    return radius
 
 # ----------------------- get a filled in Table blob  --------------------------
 # scales the image down, gets the mask based on felt hue, smooths it, fills it,
@@ -127,11 +118,11 @@ def getTableMask(image, hue, given):
     if given != 'hsv':
         throw("Error: getTableMask only accepts hsv atm ")
 
-    hsv = cv2.resize(image, (h_mask, w_mask))
+    hsv = cv2.resize(image, (int(image.shape[1]/2), int(image.shape[0]/2)))
     isFeltHue = isFeltHueArray(hue)
 
-    for i in range(w_mask):
-        for j in range(h_mask):
+    for i in range(hsv.shape[0]):
+        for j in range(hsv.shape[1]):
             if isFeltHue[hsv[i][j][0]] and not isGrey(hsv[i][j]):
                 hsv[i][j][2] = 255
             else:
@@ -140,18 +131,17 @@ def getTableMask(image, hue, given):
     mask = hsv[:,:,2]
 
     kernel = np.ones((5,5),np.uint8)
-    mask = cv2.medianBlur(mask, 3)
     mask = cv2.dilate(mask, kernel,iterations = 1)
-    mask = cv2.medianBlur(mask, 3)
+    mask = cv2.medianBlur(mask, 5)
     mask = cv2.erode(mask, kernel,iterations = 1)
     mask = cv2.medianBlur(mask, 3)
 
     mask = getLargestBlob(mask)
 
     # assumes only 1 convex blob to fill in, hence the blob detection
-    for i in range(w_mask):
+    for i in range(mask.shape[0]):
         bot = 0
-        top = h_mask - 1
+        top = mask.shape[1] - 1
         while mask[i][bot] == 0 and top > bot:
             bot += 1
         while mask[i][top] == 0 and top > bot:
@@ -160,9 +150,9 @@ def getTableMask(image, hue, given):
             continue
         for j in range(bot, top+1):
             mask[i][j] = 255
-    for j in range(h_mask):
+    for j in range(mask.shape[1]):
         left = 0
-        right = w_mask - 1
+        right = mask.shape[0]  - 1
         while mask[left][j] == 0 and right > left:
             left += 1
         while mask[right][j] == 0 and right > left:
@@ -175,13 +165,9 @@ def getTableMask(image, hue, given):
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
 
     # clean up the image post resize
-    for i in range(image.shape[0]):
-        for j in range(image.shape[1]):
-            if mask[i][j] < 40:
-                mask[i][j] = 0
-            else:
-                mask[i][j] = 255
-    mask = cv2.medianBlur(mask, 3)
+    thresh = mask > 40
+    mask[thresh] = [255]
+    # mask = cv2.medianBlur(mask, 3)
 
     return mask
 
@@ -194,8 +180,8 @@ def getLargestBlob(mask):
     curr_label = 1 # 0 is for no label
     label_equiv = [0]
     counts = [0]
-    for i in range(w_mask):
-        for j in range(h_mask):
+    for i in range(mask.shape[0]):
+        for j in range(mask.shape[1]):
 
             # ignore if not anything
             if mask[i][j] == 0:
@@ -241,8 +227,8 @@ def getLargestBlob(mask):
             largest_count = counts[i]
 
     # go through the equivalences and only keep the label with the largest label
-    for i in range(w_mask):
-        for j in range(h_mask):
+    for i in range(mask.shape[0]):
+        for j in range(mask.shape[1]):
             if label_equiv[blobs[i][j]] == largest_blob:
                 mask[i][j] = 255
             else:
@@ -266,17 +252,21 @@ def getIntersect(line1, line2):
 # ------------------------ Get the table corners  ----------------------------
 # TODO: change so that this only takes in a mask, or split up into find hough lines
 # then pass this to a corners part
-def getCorners(image):
+def getCorners(mask, given):
 
-    mask = getMask(image)
-    edges = cv2.Canny(mask, 50, 50)
+    if given != 'mask':
+        throw("getCorners takes a mask")
+
+    # get the edges, and make them thicker so theres more votes along the best axii
+    edges = cv2.Canny(mask, 50, 20)
+    edges = cv2.dilate(edges, np.ones((3,3),np.uint8))
 
     # https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_houghlines/py_houghlines.html
     # return lines sorted by their match. take the best 4 that aren't too similar
 
-    lines = cv2.HoughLines(edges,1,np.pi/180,30)
-    min_d_rho = 10
-    min_d_theta = 0.4
+    lines = cv2.HoughLines(edges,1,np.pi/360,30)
+    min_d_rho = 40
+    min_d_theta = 0.3
     savedLines = []
 
     # get the best 4 lines that aren't too close to eachother
@@ -286,13 +276,28 @@ def getCorners(image):
             break
         too_close = False
         for saved in savedLines:
-            d_rho = abs(saved[0] - line[0])
+            d_rho = abs(abs(saved[0]) - abs(line[0]))
             d_theta = abs(saved[1] - line[1])
             d_theta = min(d_theta, np.pi - d_theta)
             if d_rho < min_d_rho and d_theta < min_d_theta:
                 too_close = True
         if not too_close:
             savedLines.append([line[0], line[1]])
+
+    # for line in savedLines:
+    #     print(line)
+    #     rho = line[0]
+    #     theta = line[1]
+    #     a = np.cos(theta)
+    #     b = np.sin(theta)
+    #     x0 = a * rho
+    #     y0 = b * rho
+    #     pt1 = (int(x0 + 1000*(-b)), int(y0 + 1000*(a)))
+    #     pt2 = (int(x0 - 1000*(-b)), int(y0 - 1000*(a)))
+    #     cv2.line(mask, pt1, pt2, (100,100,255), 3)
+    #
+    # cv2.imshow('efb', mask)
+    # cv2.waitKey()
 
     # find the most parllel lines
     best_d_theta = np.pi
@@ -348,40 +353,21 @@ def projectiveTransform(image):
 
 # -------------  normalise sat and v values in a hsv with a mask  --------------------
 # Just scales so that there is a 0 sat and a 255 sat, same for value
-def normaliseSatAndVal(inHsv, mask, given):
+def normaliseSatAndVal(hsv, given):
 
     if given != 'hsv':
         throw("Error: getBalls only accepts hsv atm ")
 
-    hsv = inHsv.copy()
-    minV = 255
-    minS = 255
-    maxV = 0
-    maxS = 0
-    for i in range(len(hsv)):
-        for j in range(len(hsv[i])):
-            if not mask[i][j]:
-                continue
-
-            if minV > hsv[i][j][2]:
-                minV = hsv[i][j][2]
-            if maxV < hsv[i][j][2]:
-                maxV = hsv[i][j][2]
-            if minS > hsv[i][j][1]:
-                minS = hsv[i][j][1]
-            if maxS < hsv[i][j][1]:
-                maxS = hsv[i][j][1]
+    minS = np.min(hsv[:,:,1])
+    maxS = np.max(hsv[:,:,1])
+    minV = np.min(hsv[:,:,2])
+    maxV = np.max(hsv[:,:,2])
 
     # x -> (x-x_min)*(255/(x_max-xmin)) -> (x-x_min)*x_scale
-    scaleV = 255.0/(maxV - minV)
-    scaleS = 255.0/(maxS - minS)
-    for i in range(len(hsv)):
-        for j in range(len(hsv[i])):
-
-            if not mask[i][j]:
-                continue
-            hsv[i][j][2] = (hsv[i][j][2] - minV) * scaleV
-            hsv[i][j][1] = (hsv[i][j][1] - minS) * scaleS
+    np.subtract(hsv[:,:,1], minS)
+    np.subtract(hsv[:,:,2], minV)
+    np.multiply(hsv[:,:,1], 255.0/(maxS - minS))
+    np.multiply(hsv[:,:,2], 255.0/(maxV - minV))
 
     return hsv
 
@@ -389,17 +375,17 @@ def normaliseSatAndVal(inHsv, mask, given):
 # --------------- Increase the contrast of saturation values -------------------
 # makes less saturated pixels appear even greyer, and more saturated pixels more saturated
 # Warning: a bit expensive
-def contrastSaturations(inHsv, mask, given):
-
-    if given != 'hsv':
-        throw("Error: getBalls only accepts hsv atm ")
-
-    hsv = inHsv.copy()
-    for i in range(len(hsv)):
-        for j in range(len(hsv[i])):
-
-            if mask[i][j]:
-                rescaled = (hsv[i][j][1]-100.0)/30.0
-                hsv[i][j][1] = 255.0 * 1 / (1 + np.exp(-rescaled))
-
-    return hsv
+# def contrastSaturations(hsv, mask, given):
+#
+#     if given != 'hsv':
+#         throw("Error: getBalls only accepts hsv atm ")
+#
+#     FORCE = 20.0 # smaller pushes the sat harder
+#     for i in range(len(hsv)):
+#         for j in range(len(hsv[i])):
+#
+#             if mask[i][j]:
+#                 rescaled = (hsv[i][j][1] - 2.0*GREY_SAT)/FORCE
+#                 hsv[i][j][1] = 255.0 * 1.0 / (1.0 + np.exp(-rescaled))
+#
+#     return hsv
