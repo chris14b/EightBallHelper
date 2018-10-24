@@ -59,7 +59,7 @@ class Table:
                      self.__best_shot.pocket.position.tuple(), Colour.CUE)
 
         else:
-            cv2.putText(output, "No good shots available", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, Colour.RED)
+            cv2.putText(output, "No good shots available", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, Colour.RED, 2)
 
         cv2.imshow("Output", output)
         cv2.waitKey(0)
@@ -383,6 +383,11 @@ if __name__ == "__main__":
                     break
                 elif 49 <= key <= 50:  # if key is 1 or 2
                     print("Loading best shot...")
+                    stillFrame = frame.copy()
+                    cv2.putText(stillFrame, "Loading best shot...", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, Colour.RED,
+                                2)
+                    cv2.imshow("Output", stillFrame)
+                    cv2.waitKey(1)
                     table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15,
                                   hough_param1=10, hough_param2=20)
                     table.find_image_features()
