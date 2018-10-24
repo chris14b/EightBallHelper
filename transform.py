@@ -8,7 +8,7 @@ h_mask = 300
 HUE_MAX = 180    # open cv does this so it stays within a uint8
 HUE_WINDOW = 10
 
-GREY_SAT = 50
+GREY_SAT = 60
 
 def isGrey(hsvPixel):
     return hsvPixel[1] < GREY_SAT
@@ -64,7 +64,7 @@ def getCircles(img, mask, radius, given):
     canny = cv2.Canny(img, 100, 80)
     canny = cv2.bitwise_and(canny, canny, mask=mask)
 
-    # cv2.imshow("pre", canny)
+    # cv2.imshow("pre", mask)
 
     kernel = np.ones((3,3),np.uint8)
     smoothed = cv2.dilate(canny, kernel,iterations = 1)
@@ -73,7 +73,7 @@ def getCircles(img, mask, radius, given):
     avg = np.add(canny/2, smoothed/2)
     avg = np.array(avg, dtype=np.uint8)
 
-    # cv2.imshow("post", canny)
+    # cv2.imshow("post", avg)
 
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
@@ -81,6 +81,40 @@ def getCircles(img, mask, radius, given):
     circles = np.uint16(np.around(circles))
 
     return circles[0]
+
+
+# ----------------------  Find the pockets  -----------------------------
+# figure make an edge mask, then find 6 largest circles?
+def getPockets(img, intersections, radius):
+
+    # make a border
+    border = np.zeros((img.shape[0],img.shape[1], 1),np.uint8)
+    cv2.line(border, intersections[0], intersections[1], (255), 10)
+    cv2.line(border, intersections[1], intersections[2], (255), 10)
+    cv2.line(border, intersections[2], intersections[3], (255), 10)
+    cv2.line(border, intersections[3], intersections[0], (255), 10)
+
+    # gets the canny edges of the images
+    kernel = np.ones((7,7),np.uint8)
+    border = cv2.dilate(border, kernel, iterations=3)
+    canny = cv2.Canny(img, 100, 50)
+    canny = cv2.bitwise_and(canny, canny, mask=border)
+
+    kernel = np.ones((3,3),np.uint8)
+    smoothed = cv2.dilate(canny, kernel,iterations = 1)
+    smoothed = cv2.medianBlur(smoothed, 3)
+
+    avg = np.add(canny/2, smoothed/2)
+    avg = np.array(avg, dtype=np.uint8)
+
+    # cv2.imshow("post", avg)
+
+    circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 5*radius,
+                            param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
+
+    circles = np.uint16(np.around(circles))
+
+    return circles[0][:6]
 
 # -------------------- Automatic ball radius finder  -----------------------------
 # assumes the size of the balls don't change too much
@@ -331,9 +365,7 @@ def getCorners(mask, given):
 # -------------  Get matrix project table to 2:1 Rextange  --------------------
 # finds the corners, then orders them(TODO), then finds which is the long one (TODO)
 # then finds matrix that affine projects it all to a 2:1 rectangle
-def projectiveTransform(image):
-
-    corners = getCorners(image)
+def projectiveTransform(corners, image):
 
     # get longest line:
     longest = 0
@@ -349,7 +381,7 @@ def projectiveTransform(image):
     projectionMatrix = cv2.getPerspectiveTransform(oldCorners, newCorners)
     warped = cv2.warpPerspective(image, projectionMatrix, (int(longest), int(longest/2)))
 
-    return warped
+    return warped, projectionMatrix
 
 # -------------  normalise sat and v values in a hsv with a mask  --------------------
 # Just scales so that there is a 0 sat and a 255 sat, same for value
