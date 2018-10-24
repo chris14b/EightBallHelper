@@ -9,8 +9,8 @@ import transform
 class Table:
     def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
                  eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7,
-                 hough_param1=60, hough_param2=30, max_image_width=1200, max_image_height=675):
-        self.__image = self.resize_image(_image, max_image_width, max_image_height)
+                 hough_param1=60, hough_param2=30):
+        self.__image = self.resize_image(_image)
         self.balls = []
         self.pockets = []
         self.__best_shot = None
@@ -103,7 +103,7 @@ class Table:
         return possible_shots
 
     # detect circles (ie balls and pockets) in image
-    def find_circles_in_image(self):
+    def find_image_features(self):
         gray_img = cv2.cvtColor(self.__image, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(self.__image, cv2.COLOR_BGR2HSV)
         mask = transform.getTableMask(hsv, transform.findFeltHueAutomatic(hsv, 'hsv'), 'hsv')
@@ -183,7 +183,7 @@ class Table:
     # check whether a ball overlaps with other balls on the table
     def __is_overlapping(self, new_ball):
         for curr_ball in self.balls:
-            if Maths.distance(new_ball.position, curr_ball.position) <= curr_ball.radius*2:
+            if Maths.distance(new_ball.position, curr_ball.position) <= curr_ball.radius * 2:
                 return True
         return False
 
@@ -356,17 +356,18 @@ if __name__ == "__main__":
             # add balls to table at random location
             table.add_ball("cue")
 
-            for ball in range(7):    
+            for ball in range(7):
                 table.add_ball("solids")
                 table.add_ball("stripes")
-                
+
             table.calculate_best_shot("solids")
             table.show_best_shot()
-    else:
+    else:  # if file is specified
         file_path = sys.argv[1]
 
-        if sys.argv[1].endswith("m4v"):
+        if sys.argv[1].endswith("m4v"):  # if file is a video
             video = cv2.VideoCapture(file_path)
+            MAX_FPS = 50
 
             success, frame = video.read()  # read first frame of video
 
@@ -374,29 +375,28 @@ if __name__ == "__main__":
                 print("Failed to read video:", file_path)
                 sys.exit(1)
 
-            while success:
+            while success:  # loop over video, displaying frames and waiting for keypresses
                 cv2.imshow("Output", frame)
-                key = cv2.waitKey(1) & 0xFF
+                key = cv2.waitKey(int(1000 / MAX_FPS)) & 0xFF  # see if a key has been pressed
 
-                if key:
-                    if key == 27:
-                        break
-                    elif 49 <= key <= 50:
-                        print("Loading best shot...")
-                        table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15,
-                                      hough_param1=10, hough_param2=20)
-                        table.find_circles_in_image()
+                if key == 27:  # if key is ESC
+                    break
+                elif 49 <= key <= 50:  # if key is 1 or 2
+                    print("Loading best shot...")
+                    table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15,
+                                  hough_param1=10, hough_param2=20)
+                    table.find_image_features()
 
-                        if key == 49:
-                            table.calculate_best_shot("solids")
-                        else:
-                            table.calculate_best_shot("stripes")
+                    if key == 49:  # if key is 1
+                        table.calculate_best_shot("solids")
+                    else:  # if key is 2
+                        table.calculate_best_shot("stripes")
 
-                        print("Displaying best shot")
-                        table.show_best_shot()
+                    print("Displaying best shot")
+                    table.show_best_shot()
 
-                success, frame = video.read()  # read video frame by frame
-        else:
+                success, frame = video.read()  # read next video frame
+        else:  # if file is an image
             image = cv2.imread(file_path)
 
             if file_path == "table_1.jpg":
@@ -411,7 +411,7 @@ if __name__ == "__main__":
             else:
                 table = Table(image)
 
-            table.find_circles_in_image()
+            table.find_image_features()
             table.calculate_best_shot("solids")
             print("Displaying image...")
             table.show_best_shot()
