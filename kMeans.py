@@ -11,55 +11,23 @@ initial = cv2.imread(sys.argv[1])
 img = cv2.resize(initial, (600, 400))
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-
-# testing hsv image
-for i in range(180):
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    isFeltHue = transform.isFeltHueArray(i)
-    for i in range(len(hsv)):
-        for j in range(len(hsv[i])):
-            if isFeltHue[hsv[i][j][0]]:
-                hsv[i][j][2] = 0
-    im2 = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    cv2.imshow("1", im2)
-    cv2.waitKey()
-
-sys.exit()
-
+# find the table hue and table mask
 feltHue  = transform.findFeltHueAutomatic(hsv, 'hsv')
 isFeltHue = transform.isFeltHueArray(feltHue)
-isTable  = transform.getTableMask(hsv, feltHue, 'hsv')
+tableMask  = transform.getTableMask(hsv, feltHue, 'hsv')
 
-hsv = transform.normaliseSatAndVal(hsv, isTable, 'hsv')
-hsv = transform.contrastSaturations(hsv, isTable, 'hsv')
-
+# --- Optional and expensive ---- hsv normalisations
+hsv = transform.normaliseSatAndVal(hsv, tableMask, 'hsv')
+hsv = transform.contrastSaturations(hsv, tableMask, 'hsv')
 img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-# gets the canny edges of the images
-canny =  cv2.Canny(img, 200, 80)
-canny = cv2.bitwise_and(canny, canny, mask=isTable)
-
-circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 2,
-                             param1=50,param2=5,minRadius=2,maxRadius=20)
-
-radius = int(np.median(circles[0,:10,2]))
-
-circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
-                        param1=50,param2=3,minRadius=radius-1,maxRadius=radius+1)
-
-circles = np.uint16(np.around(circles))
-
-# print circles
-for i in circles[0,:]:
+# get the balls
+circles = transform.getCircles(img, tableMask, 'bgr')
+for i in circles:
     # draw the outer circle
-    cv2.circle(img,(i[0],i[1]),i[2],(0,255,0),2)
-    # draw the center of the circle
-    # cv2.circle(img,(i[0],i[1]),2,(0,0,255),3)
-    cv2.imshow("1", img)
-    cv2.waitKey()
+    cv2.circle(img,(i[0],i[1]),i[2]+1,(255,255,0),1)
 
 cv2.imshow("1", img)
-cv2.imshow("2",canny)
 cv2.waitKey()
 sys.exit()
 

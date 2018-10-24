@@ -84,6 +84,41 @@ def isFeltHueArray(hue):
 #     return mask
 
 
+
+
+def getCircles(img, mask, given):
+
+    if given != 'bgr':
+        throw("Error: getCircles only accepts bgr atm ")
+
+    # gets the canny edges of the images
+    canny =  cv2.Canny(img, 150, 80)
+    canny = cv2.bitwise_and(canny, canny, mask=mask)
+
+    # cv2.imshow("pre", canny)
+
+    kernel = np.ones((3,3),np.uint8)
+    smoothed = cv2.dilate(canny, kernel,iterations = 1)
+    smoothed = cv2.medianBlur(smoothed, 3)
+    for i in range(canny.shape[0]):
+        for j in range(canny.shape[1]):
+            canny[i][j] = 0.5 * canny[i][j] + 0.5 * smoothed[i][j]
+
+    # cv2.imshow("post", canny)
+
+    # run the algorithm with many radii to try find the best match
+    circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 2,
+                                 param1=50,param2=10,minRadius=3,maxRadius=20)
+
+    #run it again get the median radius of the top 5 circles to use next
+    radius = int(np.median(circles[0,:5,2]))+1
+    circles = cv2.HoughCircles(canny, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
+                            param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
+
+    circles = np.uint16(np.around(circles))
+
+    return circles[0]
+
 # ----------------------- get a filled in Table blob  --------------------------
 # scales the image down, gets the mask based on felt hue, smooths it, fills it,
 # scales it back to the original size, then returns it
