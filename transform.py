@@ -1,6 +1,5 @@
 import sys
 import numpy as np
-from sklearn.cluster import KMeans
 import cv2
 
 w_mask = 400
@@ -8,8 +7,8 @@ h_mask = 300
 HUE_WINDOW = 8
 HUE_MAX = 180 # open cv does this so it stays within a uint8
 
-GREY_SAT = 30
-BLACK_V = 40
+GREY_SAT = 60
+BLACK_V = 60
 WHITE_V = 220
 
 def isGrey(hsvPixel):
@@ -24,7 +23,7 @@ def isBlackorWhite(hsvPixel):
 # assume that the most common hue in a give window is the felt hue
 def findFeltHueAutomatic(hsv, given):
     if given != 'hsv':
-        throw("error: findFeltHueAutomatic expects a hsv")
+        trhow("error: findFeltHueAutomatic expects a hsv")
 
     counts = np.zeros(HUE_MAX)
     for i in range(hsv.shape[0]):
@@ -52,39 +51,40 @@ def findFeltHueAutomatic(hsv, given):
 def isFeltHueArray(hue):
 
     # set those
-    isFeltHue = [False] * 256
-    for w in range(int(-HUE_WINDOW/2), int(HUE_WINDOW/2)):
-        isFeltHue[(hue + w + HUE_MAX) % HUE_MAX] = True
+    isFeltHue = [False] * HUE_MAX
+    for w in range(HUE_WINDOW):
+        isFeltHue[(hue + w - int(HUE_WINDOW/2) + HUE_MAX) % HUE_MAX] = True
 
     return isFeltHue
 
 
 # -----------------------  Remove Felt Pixels  --------------------------
 # sets pixels with the felt hue to 0
-def getBalls(image, hue, given, tableMask):
+# I don't like this
+# def getBalls(image, hue, given, tableMask):
+#
+#     if given != 'hsv':
+#         throw("Error: getBalls only accepts hsv atm ")
+#
+#     hsv = image.copy()
+#     isFeltHue = isFeltHueArray(hue)
+#
+#     for i in range(hsv.shape[0]):
+#         for j in range(hsv.shape[1]):
+#             validColor = (not isFeltHue[hsv[i][j][0]] and not isGrey(hsv[i][j]))
+#             if tableMask[i][j] and (validColor or isBlackorWhite(hsv[i][j])):
+#                 hsv[i][j][2] = 255
+#             else:
+#                 hsv[i][j][2] = 0
+#
+#     mask = hsv[:,:,2]
+#     mask = cv2.medianBlur(mask, 5)
+#     mask = cv2.medianBlur(mask, 5)
+#
+#     return mask
 
-    if given != 'hsv':
-        throw("Error: getBalls only accepts hsv atm ")
 
-    hsv = image.copy()
-    isFeltHue = isFeltHueArray(hue)
-
-    for i in range(hsv.shape[0]):
-        for j in range(hsv.shape[1]):
-            if tableMask[i][j] and (not isFeltHue[hsv[i][j][0]] or isBlackorWhite(hsv[i][j])):
-                hsv[i][j][2] = 255
-            else:
-                hsv[i][j][2] = 0
-
-    mask = hsv[:,:,2]
-
-    kernel = np.ones((5,5),np.uint8)
-    mask = cv2.erode(mask, kernel,iterations = 1)
-    mask = cv2.dilate(mask, kernel,iterations = 1)
-    mask = cv2.medianBlur(mask, 5)
-
-    return mask
-
+# ----------------------- get a filled in Table blob  --------------------------
 # scales the image down, gets the mask based on felt hue, smooths it, fills it,
 # scales it back to the original size, then returns it
 def getTableMask(image, hue, given):
@@ -105,15 +105,16 @@ def getTableMask(image, hue, given):
     mask = hsv[:,:,2]
 
     kernel = np.ones((5,5),np.uint8)
+    mask = cv2.medianBlur(mask, 3)
     mask = cv2.dilate(mask, kernel,iterations = 1)
-    mask = cv2.medianBlur(mask, 5)
+    mask = cv2.medianBlur(mask, 3)
     mask = cv2.erode(mask, kernel,iterations = 1)
     mask = cv2.medianBlur(mask, 3)
 
     mask = getLargestBlob(mask)
 
     # assumes only 1 convex blob to fill in, hence the blob detection
-    for i in range(1, w_mask):
+    for i in range(w_mask):
         bot = 0
         top = h_mask - 1
         while mask[i][bot] == 0 and top > bot:
@@ -123,8 +124,18 @@ def getTableMask(image, hue, given):
         if mask[i][top] == 0: #nothing to fill in
             continue
         for j in range(bot, top+1):
-            if mask[i-1][j] == 255:
-                mask[i][j] = 255
+            mask[i][j] = 255
+    for j in range(h_mask):
+        left = 0
+        right = w_mask - 1
+        while mask[left][j] == 0 and right > left:
+            left += 1
+        while mask[right][j] == 0 and right > left:
+            right -= 1
+        if mask[left][j] == 0: #nothing to fill in
+            continue
+        for i in range(left, right+1):
+            mask[i][j] = 255
 
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
 
@@ -139,11 +150,15 @@ def getTableMask(image, hue, given):
 
     return mask
 
-def getTableTop(image):
-    mask = getTableMask(image, findFeltHueAutomatic(image, 'hsv'), 'hsv')
-    masked = cv2.bitwise_and(image, image, mask=mask)
-    return masked
+# ----------------------- Maybe do this yourself...  --------------------------
+# scales the image down, gets the mask based on felt hue, smooths it, fills it,
+# def getTableTop(image):
+#     mask = getTableMask(image)
+#     masked = cv2.bitwise_and(image, image, mask=mask)
+#     return masked
 
+
+# -------------------- Blob detection and largest blob  -----------------------
 # takes in a thresholded image, setting largest blob to having 255 values, 0 elsewhere
 def getLargestBlob(mask):
 
@@ -184,7 +199,6 @@ def getLargestBlob(mask):
 
             counts[blobs[i][j]] += 1
 
-
     # shuffle the counts down to the lowest label
     for i in range(1, len(counts)):
         temp = counts[i]
@@ -208,8 +222,8 @@ def getLargestBlob(mask):
                 mask[i][j] = 0
     return mask
 
-# assumes rho theta form
-# from https://stackoverflow.com/questions/46565975/find-intersection-point-of-two-lines-drawn-using-houghlines-opencv
+# ------------------------- Hough line intersection  ----------------------------
+# taken from https://stackoverflow.com/questions/46565975/find-intersection-point-of-two-lines-drawn-using-houghlines-opencv
 def getIntersect(line1, line2):
     rho1, theta1 = line1
     rho2, theta2 = line2
@@ -222,6 +236,9 @@ def getIntersect(line1, line2):
     x0, y0 = int(np.round(x0)), int(np.round(y0))
     return (x0, y0)
 
+# ------------------------ Get the table corners  ----------------------------
+# TODO: change so that this only takes in a mask, or split up into find hough lines
+# then pass this to a corners part
 def getCorners(image):
 
     mask = getMask(image)
@@ -279,6 +296,9 @@ def getCorners(image):
     return corners
 
 
+# -------------  Get matrix project table to 2:1 Rextange  --------------------
+# finds the corners, then orders them(TODO), then finds which is the long one (TODO)
+# then finds matrix that affine projects it all to a 2:1 rectangle
 def projectiveTransform(image):
 
     corners = getCorners(image)
@@ -299,31 +319,71 @@ def projectiveTransform(image):
 
     return warped
 
+# -------------  normalise sat and v values in a hsv with a mask  --------------------
+# Just scales so that there is a 0 sat and a 255 sat, same for value
+def normaliseSatAndVal(inHsv, mask, given):
 
-# makes less saturated pixels appear even greyer, and more
-# saturated pixels more saturated
-def contrastSaturations(image):
-    hls = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
+    if given != 'hsv':
+        throw("Error: getBalls only accepts hsv atm ")
 
-    for i in range(len(hls)):
-        for j in range(len(hls[i])):
-            sat = sigmoid((hls[i][j][2]-150.0)/40.0)
-            hls[i][j][2] = 255.0 * sat
+    hsv = inHsv.copy()
+    minV = 255
+    minS = 255
+    maxV = 0
+    maxS = 0
+    for i in range(len(hsv)):
+        for j in range(len(hsv[i])):
+            if not mask[i][j]:
+                continue
 
-    return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR)
+            if minV > hsv[i][j][2]:
+                minV = hsv[i][j][2]
+            if maxV < hsv[i][j][2]:
+                maxV = hsv[i][j][2]
+            if minS > hsv[i][j][1]:
+                minS = hsv[i][j][1]
+            if maxS < hsv[i][j][1]:
+                maxS = hsv[i][j][1]
+
+    # x -> (x-x_min)*(255/(x_max-xmin)) -> (x-x_min)*x_scale
+    scaleV = 255.0/(maxV - minV)
+    scaleS = 255.0/(maxS - minS)
+    for i in range(len(hsv)):
+        for j in range(len(hsv[i])):
+            if not mask[i][j]:
+                continue
+            hsv[i][j][2] = (hsv[i][j][2] - minV) * scaleV
+            hsv[i][j][1] = (hsv[i][j][1] - minS) * scaleS
+
+    return hsv
+
+
+# --------------- Increase the contrast of saturation values -------------------
+# makes less saturated pixels appear even greyer, and more saturated pixels more saturated
+# Warning: a bit expensive
+def contrastSaturations(inHsv):
+
+    hsv = inHsv.copy()
+    for i in range(len(hsv)):
+        for j in range(len(hsv[i])):
+
+             # make saturated pixels even more so, and less saturated less so
+            S = sigmoid((hsv[i][j][1]-100.0)/30.0)
+            hsv[i][j][1] = 255.0 * S
+    return hsv
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # First command line argument will be the file name of image. If none is supplied, generate random table
 
-    img = cv2.imread(sys.argv[1])
-    tableTop = geTableTop(img)
-    onlyBalls = getNoFeltMask(tableTop)
+    # img = cv2.imread(sys.argv[1])
+    # tableTop = geTableTop(img)
+    # onlyBalls = getNoFeltMask(tableTop)
 
     # onlyBalls = cv2.bitwise_and(tableTop, onlyBalls)
 
-    cv2.imshow("1", img)
-    cv2.imshow("3", onlyBalls)
-    cv2.waitKey()
+    # cv2.imshow("1", img)
+    # cv2.imshow("3", onlyBalls)
+    # cv2.waitKey()
