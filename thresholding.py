@@ -46,7 +46,7 @@ def getBallsAndPockets(initial):
     # go again with the new mask
     circles = transform.getCircles(img, tableMask, radius,'bgr')
     balls = []
-
+    previousFail = False
     for c in circles:
 
         # see how many are felt
@@ -57,8 +57,17 @@ def getBallsAndPockets(initial):
                 if isFeltHue[pix[0]] and pix[1] > 50:
                     numFelt += 1
 
-        if numFelt <= 2 and tableMask[c[1]][c[0]]:
-            balls.append(c)
+        # could either require 2 falses in a row, or make exceptions for ones
+        # far from walls or whatever. i think 2 falses is more extendible
+        if numFelt > 2 or not tableMask[c[1]][c[0]]:
+            if previousFail:
+                balls = balls[:-1]
+                break
+            else:
+                previousFail = True
+        else:
+            previousFail = False
+        balls.append(c)
 
         # could either require 2 falses in a row, or make exceptions for ones
         # far from walls or whatever. i think 2 falses is more extendible
