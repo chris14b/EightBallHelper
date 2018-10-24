@@ -24,7 +24,7 @@ def getBallsAndPockets(initial):
 
     # Now get pockets, and get better corner estimates now that we have pockets:
     corners = transform.getCorners(tableMask, 'mask')
-    pockets = transform.getPockets(img, corners, radius*2)
+    pockets = transform.getPockets(img, corners, int(radius*1.7))
     cornersMissed = 4
     for c in range(4):
         for p in range(len(pockets)):
@@ -38,15 +38,23 @@ def getBallsAndPockets(initial):
     # maybe we didn't get all the corners?
     pockets = pockets[:(6-cornersMissed)]
 
-    # rule out the pockets in the table thing
+    # modify the tableMask to have no go zones between the corners...
+
+    cv2.line(tableMask, corners[0], corners[1], (255), 2)
+    cv2.line(tableMask, corners[1], corners[2], (255), 2)
+    cv2.line(tableMask, corners[2], corners[3], (255), 2)
+    cv2.line(tableMask, corners[3], corners[0], (255), 2)
+
     for p in pockets:
         # draw the outer circle
-        cv2.circle(tableMask, (p[0],p[1]), p[2]-2, (0), -1)
+        cv2.circle(tableMask, (p[0],p[1]), p[2], (0), -1)
+    # cv2.imshow("erv", tableMask)
 
     # go again with the new mask
     circles = transform.getCircles(img, tableMask, radius,'bgr')
     balls = []
     previousFail = False
+    count = 0
     for c in circles:
 
         # see how many are felt
@@ -59,7 +67,12 @@ def getBallsAndPockets(initial):
 
         # could either require 2 falses in a row, or make exceptions for ones
         # far from walls or whatever. i think 2 falses is more extendible
-        if numFelt > 2 or not tableMask[c[1]][c[0]]:
+        if count >= 16:
+            break
+        if not tableMask[c[1]][c[0]]:
+            previousFail = True
+            continue
+        elif numFelt > 2:
             if previousFail:
                 balls = balls[:-1]
                 break
@@ -68,6 +81,7 @@ def getBallsAndPockets(initial):
         else:
             previousFail = False
         balls.append(c)
+        count += 1
 
         # could either require 2 falses in a row, or make exceptions for ones
         # far from walls or whatever. i think 2 falses is more extendible
@@ -93,6 +107,10 @@ if __name__ == "__main__":
     scale = int(initial.shape[1]/700.0) + 1
     initial = cv2.resize(initial, (int(initial.shape[1]/scale), int(initial.shape[0]/scale)))
     balls, pockets = getBallsAndPockets(initial)
+    for c in balls:
+        cv2.circle(initial, (c[0], c[1]), c[2]+1, (255,255,255), 1)
+    cv2.imshow("1", initial)
+    cv2.waitKey()
     sys.exit()
 
 

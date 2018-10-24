@@ -95,9 +95,9 @@ def getPockets(img, intersections, radius):
     cv2.line(border, intersections[3], intersections[0], (255), 10)
 
     # gets the canny edges of the images
-    kernel = np.ones((7,7),np.uint8)
-    border = cv2.dilate(border, kernel, iterations=3)
-    canny = cv2.Canny(img, 100, 50)
+    kernel = np.ones((9,9),np.uint8)
+    border = cv2.dilate(border, kernel, iterations=4)
+    canny = cv2.Canny(img, 100, 80)
     canny = cv2.bitwise_and(canny, canny, mask=border)
 
     kernel = np.ones((3,3),np.uint8)
@@ -107,9 +107,9 @@ def getPockets(img, intersections, radius):
     avg = np.add(canny/2, smoothed/2)
     avg = np.array(avg, dtype=np.uint8)
 
-    # cv2.imshow("post", avg)
+    cv2.imshow("post", avg)
 
-    circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 5*radius,
+    circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 10*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
 
     circles = np.uint16(np.around(circles))

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import math
 import cv2
 import numpy as np
@@ -206,22 +207,26 @@ class Table:
     # resizes image to fit given dimensions
     @staticmethod
     def resize_image(_image, max_width=1200, max_height=675):
-        original_height = _image.shape[0]
-        original_width = _image.shape[1]
 
-        if original_height > max_height or original_width > max_width:
-            aspect_ratio = original_width / original_height
+        scale = int(_image.shape[1]/700.0) + 1
+        resized_image = cv2.resize(_image, (int(_image.shape[1]/scale), int(_image.shape[0]/scale)))
 
-            if aspect_ratio >= max_width / max_height:
-                width = max_width
-                height = width * _image.shape[0] / _image.shape[1]
-                resized_image = cv2.resize(_image, (int(width), int(height)))
-            else:
-                height = max_height
-                width = height * _image.shape[1] / _image.shape[0]
-                resized_image = cv2.resize(_image, (int(width), int(height)))
-        else:
-            return _image
+        # original_height = _image.shape[0]
+        # original_width = _image.shape[1]
+        #
+        # if original_height > max_height or original_width > max_width:
+        #     aspect_ratio = original_width / original_height
+        #
+        #     if aspect_ratio >= max_width / max_height:
+        #         width = max_width
+        #         height = width * _image.shape[0] / _image.shape[1]
+        #         resized_image = cv2.resize(_image, (int(width), int(height)))
+        #     else:
+        #         height = max_height
+        #         width = height * _image.shape[1] / _image.shape[0]
+        #         resized_image = cv2.resize(_image, (int(width), int(height)))
+        # else:
+        #     return _image
 
         return resized_image
 
