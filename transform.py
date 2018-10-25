@@ -94,7 +94,6 @@ def midPoint(tuple1, tuple2):
 def getPockets(img, corners, radius):
 
     # # make a mask vaguely where corners are, and half way between them
-
     mask = np.zeros((img.shape[0],img.shape[1], 1),np.uint8)
     cv2.circle(mask, corners[0], radius*2, (255), -1)
     cv2.circle(mask, corners[1], radius*2, (255), -1)
@@ -105,7 +104,7 @@ def getPockets(img, corners, radius):
     cv2.circle(mask, midPoint(corners[2], corners[3]), radius*2, (255), -1)
     cv2.circle(mask, midPoint(corners[3], corners[0]), radius*2, (255), -1)
 
-    # # gets the canny edges of the images
+    # gets the canny edges of the images
     canny = cv2.Canny(img, 100, 80)
     canny = cv2.bitwise_and(canny, canny, mask=mask)
 
@@ -116,7 +115,7 @@ def getPockets(img, corners, radius):
     avg = np.add(canny/2, smoothed/2)
     avg = np.array(avg, dtype=np.uint8)
 
-    cv2.imshow("post", avg)
+    # cv2.imshow("post", avg)
 
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 10*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
