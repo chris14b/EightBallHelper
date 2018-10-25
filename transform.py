@@ -103,6 +103,7 @@ def getPockets(img, corners, radius):
 
     # gets the canny edges of the images
     canny = cv2.Canny(img, 100, 80)
+    # cv2.imshow("demo", canny)
     canny = cv2.bitwise_and(canny, canny, mask=mask)
 
     kernel = np.ones((3,3),np.uint8)
@@ -112,7 +113,9 @@ def getPockets(img, corners, radius):
     avg = np.add(canny/2, smoothed/2)
     avg = np.array(avg, dtype=np.uint8)
 
-    # cv2.imshow("post", avg)
+    # cv2.imshow("demo1", avg)
+    # cv2.imshow("demo2", mask)
+    # cv2.waitKey()
 
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 10*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
@@ -131,6 +134,7 @@ def findBallRadiusAutomatic(img, mask, given):
 
     # gets the canny edges of the images
     canny =  cv2.Canny(img, 100, 80)
+    # cv2.imshow("radius Auto canny", canny)
     canny = cv2.bitwise_and(canny, canny, mask=mask)
 
     kernel = np.ones((3,3),np.uint8)
@@ -139,6 +143,10 @@ def findBallRadiusAutomatic(img, mask, given):
 
     avg = np.add(smoothed/2, canny/2)
     avg = np.array(avg, dtype=np.uint8)
+
+    # cv2.imshow("radius Auto avg", avg)
+    # cv2.imshow("radius Auto mask", mask)
+    # cv2.waitKey()
 
     # run the algorithm with many radii to try find the best match
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 2,
@@ -304,6 +312,8 @@ def getCorners(mask, given):
     # https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_houghlines/py_houghlines.html
     # return lines sorted by their match. take the best 4 that aren't too similar
 
+    # cv2.imshow('edges for line hough', edges)
+
     lines = cv2.HoughLines(edges,1,np.pi/360,30)
     min_d_rho = 40
     min_d_theta = 0.3
@@ -325,7 +335,6 @@ def getCorners(mask, given):
             savedLines.append([line[0], line[1]])
 
     # for line in savedLines:
-    #     print(line)
     #     rho = line[0]
     #     theta = line[1]
     #     a = np.cos(theta)
@@ -336,7 +345,7 @@ def getCorners(mask, given):
     #     pt2 = (int(x0 - 1000*(-b)), int(y0 - 1000*(a)))
     #     cv2.line(mask, pt1, pt2, (100,100,255), 3)
     #
-    # cv2.imshow('efb', mask)
+    # cv2.imshow('hough mask with lines', mask)
     # cv2.waitKey()
 
     # find the most parllel lines

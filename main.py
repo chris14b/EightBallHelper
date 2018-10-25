@@ -232,7 +232,7 @@ class Table:
     def resize_image(_image, max_width=1200, max_height=675):
 
         scale = int(_image.shape[1]/700.0) + 1
-        print(_image.shape)
+        # print(_image.shape)
         resized_image = cv2.resize(_image, (int(_image.shape[1]/scale), int(_image.shape[0]/scale)))
 
         # original_height = _image.shape[0]
@@ -374,7 +374,7 @@ class Colour:
     STRIPES = (0, 255, 255)
     POCKET = (10, 36, 72)
     TABLE = (10, 108, 3)
-    EIGHT = (0, 0, 0)
+    EIGHT = (100, 100, 100)
     RED = (0, 0, 255)
 
 
@@ -431,7 +431,7 @@ if __name__ == "__main__":
                     cv2.waitKey(1)
                     table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15, hough_param1=10,
                                   hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=120,
-                                  black_pixel_ratio_threshold=0.9, eight_ball_threshold=70)
+                                  black_pixel_ratio_threshold=0.9, eight_ball_threshold=30)
                     table.find_image_features()
 
                     if key == 49:  # if key is 1

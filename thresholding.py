@@ -95,11 +95,15 @@ def getBallsAndPockets(initial):
 if __name__ == "__main__":
     # take in the image and do some preProcessing
     initial = cv2.imread(sys.argv[1])
-    scale = int(initial.shape[1]/700.0) + 1
-    initial = cv2.resize(initial, (int(initial.shape[1]/scale), int(initial.shape[0]/scale)))
+    # scale = int(initial.shape[1]/700.0) + 1
+    ratio = initial.shape[0]/initial.shape[1]
+    # initial = cv2.resize(initial, (int(initial.shape[1]/scale), int(initial.shape[0]/scale)))
+    initial = cv2.resize(initial, (600, int(ratio*600)))
     balls, pockets = getBallsAndPockets(initial)
     for c in balls:
         cv2.circle(initial, (c[0], c[1]), c[2]+1, (255,255,255), 1)
+    for c in pockets:
+        cv2.circle(initial, (c[0], c[1]), c[2]+1, (0,255,255), 1)
     cv2.imshow("1", initial)
     cv2.waitKey()
     sys.exit()
