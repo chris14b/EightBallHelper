@@ -8,8 +8,8 @@ import thresholding
 
 
 class Table:
-    def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=240,
-                 eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.7,
+    def __init__(self, _image, min_ball_radius=8, max_pocket_radius=30, radius_threshold=20, cue_ball_threshold=220,
+                 eight_ball_threshold=40, white_pixel_ratio_threshold=0.07, black_pixel_ratio_threshold=0.8,
                  hough_param1=60, hough_param2=30):
         self.__image = self.resize_image(_image)
         self.balls = []
@@ -209,6 +209,7 @@ class Table:
     def resize_image(_image, max_width=1200, max_height=675):
 
         scale = int(_image.shape[1]/700.0) + 1
+        print(_image.shape)
         resized_image = cv2.resize(_image, (int(_image.shape[1]/scale), int(_image.shape[0]/scale)))
 
         # original_height = _image.shape[0]

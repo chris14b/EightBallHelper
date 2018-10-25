@@ -1,9 +1,6 @@
 import sys
 import numpy as np
-import cv2
-
-w_mask = 400
-h_mask = 300
+import cv2y
 
 HUE_MAX = 180    # open cv does this so it stays within a uint8
 HUE_WINDOW = 10
@@ -145,7 +142,7 @@ def findBallRadiusAutomatic(img, mask, given):
 
     # run the algorithm with many radii to try find the best match
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 2,
-                                 param1=50,param2=10,minRadius=5,maxRadius=20)
+                                 param1=50,param2=10,minRadius=5,maxRadius=10)
 
     #run it again get the median radius of the top 5 circles to use next
     radius = int(np.median(circles[0,:5,2])) + 1 # err on the side of larger
