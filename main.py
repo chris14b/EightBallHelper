@@ -127,9 +127,29 @@ class Table:
         #         self.balls.append(Ball(self.__get_ball_type(circle), position, radius=circle[2]))
 
         balls, pockets = thresholding.getBallsAndPockets(self.__image)
+        ball_stats = []
 
-        for _ball in balls:
-            self.balls.append(Ball(self.__get_ball_type(_ball), Point(_ball[0], _ball[1]), radius=_ball[2]))
+        for circle in balls:
+            ball_stats.append(self.__get_ball_stats(circle))
+            # self.balls.append(Ball(self.__get_ball_type(_ball), Point(_ball[0], _ball[1]), radius=_ball[2]))
+
+        ball_stats.sort(key=lambda x: x[0], reverse=True)
+
+        cue_circle = ball_stats.pop(0)[3]
+        self.balls.append(Ball("cue", Point(cue_circle[0], cue_circle[1]), cue_circle[2]))
+
+        ball_stats.sort(key=lambda x: x[1], reverse=True)
+
+        eight_circle = ball_stats.pop(0)[3]
+        self.balls.append(Ball("eight", Point(eight_circle[0], eight_circle[1]), eight_circle[2]))
+
+        for ball_stat in ball_stats:
+            circle = ball_stat[3]
+
+            if ball_stat[2] < self.__white_pixel_ratio_threshold:
+                self.balls.append(Ball("solids", Point(circle[0], circle[1]), radius=circle[2]))
+            else:
+                self.balls.append(Ball("stripes", Point(circle[0], circle[1]), radius=circle[2]))
 
         for _pocket in pockets:
             self.pockets.append(Pocket(Point(_pocket[0], _pocket[1]), radius=_pocket[2]))
@@ -152,7 +172,7 @@ class Table:
 
         return leftmost < point.x < rightmost and topmost < point.y < bottommost
 
-    def __get_ball_type(self, circle):
+    def __get_ball_stats(self, circle):
         x, y, radius = circle
         x_min = x - radius
         x_max = x + radius
@@ -180,14 +200,16 @@ class Table:
         white_pixel_ratio = num_white_pixels / num_pixels
         black_pixel_ratio = num_black_pixels / num_pixels
 
-        if brightness > self.__cue_ball_threshold:
-            return "cue"
-        elif black_pixel_ratio > self.__black_pixel_ratio_threshold:
-            return "eight"
-        elif white_pixel_ratio < self.__white_pixel_ratio_threshold:
-            return "solids"
-        else:
-            return "stripes"
+        return brightness, black_pixel_ratio, white_pixel_ratio, circle
+
+        # if brightness > self.__cue_ball_threshold:
+        #     return "cue"
+        # elif black_pixel_ratio > self.__black_pixel_ratio_threshold:
+        #     return "eight"
+        # elif white_pixel_ratio < self.__white_pixel_ratio_threshold:
+        #     return "solids"
+        # else:
+        #     return "stripes"
 
     # check whether a ball overlaps with other balls on the table
     def __is_overlapping(self, new_ball):
@@ -402,7 +424,7 @@ if __name__ == "__main__":
                     cv2.imshow("Output", stillFrame)
                     cv2.waitKey(1)
                     table = Table(frame, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15, hough_param1=10,
-                                  hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=140,
+                                  hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=120,
                                   black_pixel_ratio_threshold=0.9, eight_ball_threshold=70)
                     table.find_image_features()
 
@@ -429,7 +451,9 @@ if __name__ == "__main__":
                               hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=140,
                               black_pixel_ratio_threshold=0.9, eight_ball_threshold=70)
             else:
-                table = Table(image)
+                table = Table(image, min_ball_radius=5, max_pocket_radius=30, radius_threshold=15, hough_param1=10,
+                              hough_param2=20, white_pixel_ratio_threshold=0.15, cue_ball_threshold=120,
+                              black_pixel_ratio_threshold=0.9, eight_ball_threshold=70)
 
             table.find_image_features()
             table.calculate_best_shot("solids")
