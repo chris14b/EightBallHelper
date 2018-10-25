@@ -54,7 +54,7 @@ def getBallsAndPockets(initial):
     circles = transform.getCircles(img, tableMask, radius,'bgr')
     balls = []
     greenFound = False
-    count = 0
+    numFails = 0
     for c in circles:
 
         # see how many are felt
@@ -65,36 +65,29 @@ def getBallsAndPockets(initial):
                 if isFeltHue[pix[0]] and pix[1] > 50:
                     numFelt += 1
 
-        if numFelt > 2 or not tableMask[c[1]][c[0]]:
-            cv2.circle(img, (c[0], c[1]), c[2]+1, (10,10,250), 1)
-        else:
-            cv2.circle(img, (c[0], c[1]), c[2]+1, (255,255,0), 1)
-        cv2.imshow("1", img)
-        cv2.waitKey()
+        # if numFelt > 2 or not tableMask[c[1]][c[0]]:
+        #     cv2.circle(img, (c[0], c[1]), c[2]+1, (10,10,250), 1)
+        # else:
+        #     cv2.circle(img, (c[0], c[1]), c[2]+1, (255,255,0), 1)
+        # cv2.imshow("1", img)
+        # cv2.waitKey()
+
+
+        if len(balls) > 16 or numFails >= 3:
+            break
 
         # only allow the first green one
         if numFelt > 2:
+            numFails += 1
             if greenFound:
                 continue
             greenFound = True
 
-        if not tableMask[c[1]][c[0]]:
+        if tableMask[c[1]][c[0]] == 0:
+            numFails += 1
             continue
 
-
-        if count > 16:
-            break
-
-
-        count += 1
         balls.append(c)
-
-
-    # warped, matrix = transform.projectiveTransform(corners, img)
-    #
-    # cv2.imshow("1", img)
-    # cv2.imshow("2", initial)
-    # cv2.waitKey()
 
     return balls, pockets
 

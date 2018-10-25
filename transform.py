@@ -83,22 +83,31 @@ def getCircles(img, mask, radius, given):
     return circles[0]
 
 
+def midPoint(tuple1, tuple2):
+    x = int((tuple1[0] + tuple2[0])/2)
+    y = int((tuple1[1] + tuple2[1])/2)
+    return (x, y)
+
+
 # ----------------------  Find the pockets  -----------------------------
 # figure make an edge mask, then find 6 largest circles?
-def getPockets(img, intersections, radius):
+def getPockets(img, corners, radius):
 
-    # make a border
-    border = np.zeros((img.shape[0],img.shape[1], 1),np.uint8)
-    cv2.line(border, intersections[0], intersections[1], (255), 10)
-    cv2.line(border, intersections[1], intersections[2], (255), 10)
-    cv2.line(border, intersections[2], intersections[3], (255), 10)
-    cv2.line(border, intersections[3], intersections[0], (255), 10)
+    # # make a mask vaguely where corners are, and half way between them
 
-    # gets the canny edges of the images
-    kernel = np.ones((9,9),np.uint8)
-    border = cv2.dilate(border, kernel, iterations=4)
+    mask = np.zeros((img.shape[0],img.shape[1], 1),np.uint8)
+    cv2.circle(mask, corners[0], radius*2, (255), -1)
+    cv2.circle(mask, corners[1], radius*2, (255), -1)
+    cv2.circle(mask, corners[2], radius*2, (255), -1)
+    cv2.circle(mask, corners[3], radius*2, (255), -1)
+    cv2.circle(mask, midPoint(corners[0], corners[1]), radius*2, (255), -1)
+    cv2.circle(mask, midPoint(corners[1], corners[2]), radius*2, (255), -1)
+    cv2.circle(mask, midPoint(corners[2], corners[3]), radius*2, (255), -1)
+    cv2.circle(mask, midPoint(corners[3], corners[0]), radius*2, (255), -1)
+
+    # # gets the canny edges of the images
     canny = cv2.Canny(img, 100, 80)
-    canny = cv2.bitwise_and(canny, canny, mask=border)
+    canny = cv2.bitwise_and(canny, canny, mask=mask)
 
     kernel = np.ones((3,3),np.uint8)
     smoothed = cv2.dilate(canny, kernel,iterations = 1)
@@ -107,7 +116,7 @@ def getPockets(img, intersections, radius):
     avg = np.add(canny/2, smoothed/2)
     avg = np.array(avg, dtype=np.uint8)
 
-    # cv2.imshow("post", avg)
+    cv2.imshow("post", avg)
 
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 10*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
@@ -281,6 +290,7 @@ def getIntersect(line1, line2):
     b = np.array([[rho1], [rho2]])
     x0, y0 = np.linalg.solve(A, b)
     x0, y0 = int(np.round(x0)), int(np.round(y0))
+    intersect = [x0, y0]
     return (x0, y0)
 
 # ------------------------ Get the table corners  ----------------------------
