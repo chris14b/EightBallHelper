@@ -47,13 +47,13 @@ def getBallsAndPockets(initial):
 
     for p in pockets:
         # draw the outer circle
-        cv2.circle(tableMask, (p[0],p[1]), p[2], (0), -1)
+        cv2.circle(tableMask, (p[0],p[1]), p[2]+2, (0), -1)
     # cv2.imshow("erv", tableMask)
 
     # go again with the new mask
     circles = transform.getCircles(img, tableMask, radius,'bgr')
     balls = []
-    previousFail = False
+    greenFound = False
     count = 0
     for c in circles:
 
@@ -65,32 +65,30 @@ def getBallsAndPockets(initial):
                 if isFeltHue[pix[0]] and pix[1] > 50:
                     numFelt += 1
 
-        # could either require 2 falses in a row, or make exceptions for ones
-        # far from walls or whatever. i think 2 falses is more extendible
-        if count >= 16:
-            break
-        if not tableMask[c[1]][c[0]]:
-            previousFail = True
-            continue
-        elif numFelt > 2:
-            if previousFail:
-                balls = balls[:-1]
-                break
-            else:
-                previousFail = True
+        if numFelt > 2 or not tableMask[c[1]][c[0]]:
+            cv2.circle(img, (c[0], c[1]), c[2]+1, (10,10,250), 1)
         else:
-            previousFail = False
-        balls.append(c)
-        count += 1
+            cv2.circle(img, (c[0], c[1]), c[2]+1, (255,255,0), 1)
+        cv2.imshow("1", img)
+        cv2.waitKey()
 
-        # could either require 2 falses in a row, or make exceptions for ones
-        # far from walls or whatever. i think 2 falses is more extendible
-        # if numFelt > 2 or not tableMask[c[1]][c[0]]:
-        #     cv2.circle(img, (c[0], c[1]), c[2]+1, (10,10,250), 1)
-        # else:
-        #     cv2.circle(img, (c[0], c[1]), c[2]+1, (255,255,0), 1)
-        # cv2.imshow("1", img)
-        # cv2.waitKey()
+        # only allow the first green one
+        if numFelt > 2:
+            if greenFound:
+                continue
+            greenFound = True
+
+        if not tableMask[c[1]][c[0]]:
+            continue
+
+
+        if count > 16:
+            break
+
+
+        count += 1
+        balls.append(c)
+
 
     # warped, matrix = transform.projectiveTransform(corners, img)
     #

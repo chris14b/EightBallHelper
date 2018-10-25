@@ -76,7 +76,7 @@ def getCircles(img, mask, radius, given):
     # cv2.imshow("post", avg)
 
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 1.5*radius,
-                            param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
+                            param1=50,param2=6,minRadius=radius-1,maxRadius=radius+1)
 
     circles = np.uint16(np.around(circles))
 
@@ -107,7 +107,7 @@ def getPockets(img, intersections, radius):
     avg = np.add(canny/2, smoothed/2)
     avg = np.array(avg, dtype=np.uint8)
 
-    cv2.imshow("post", avg)
+    # cv2.imshow("post", avg)
 
     circles = cv2.HoughCircles(avg, cv2.HOUGH_GRADIENT, 1, 10*radius,
                             param1=50,param2=4,minRadius=radius-1,maxRadius=radius+1)
