@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-import cv2y
+import cv2
 
 HUE_MAX = 180    # open cv does this so it stays within a uint8
 HUE_WINDOW = 10

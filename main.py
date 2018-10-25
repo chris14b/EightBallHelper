@@ -62,6 +62,7 @@ class Table:
         else:
             cv2.putText(output, "No good shots available", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, Colour.RED, 2)
 
+        output = self.upscale(output, 2)
         cv2.imshow("Output", output)
         cv2.waitKey(0)
 
@@ -253,6 +254,10 @@ class Table:
 
         return resized_image
 
+    @staticmethod
+    def upscale(image, scale):
+        resized_image = cv2.resize(image, (int(image.shape[1]*scale), int(image.shape[0]*scale)))
+        return resized_image
 
 class Ball:
     def __init__(self, _type, position, radius=10):
