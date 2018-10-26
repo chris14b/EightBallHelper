@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import math
 import cv2
-import numpy as np
 from random import randint
 import sys
 import thresholding
@@ -229,7 +228,7 @@ class Table:
 
     # resizes image to fit given dimensions
     @staticmethod
-    def resize_image(_image, max_width=1200, max_height=675):
+    def resize_image(_image):
 
         scale = int(_image.shape[1]/700.0) + 1
         # print(_image.shape)
@@ -255,9 +254,10 @@ class Table:
         return resized_image
 
     @staticmethod
-    def upscale(image, scale):
-        resized_image = cv2.resize(image, (int(image.shape[1]*scale), int(image.shape[0]*scale)))
+    def upscale(_image, scale):
+        resized_image = cv2.resize(_image, (int(_image.shape[1] * scale), int(_image.shape[0] * scale)))
         return resized_image
+
 
 class Ball:
     def __init__(self, _type, position, radius=10):
@@ -381,28 +381,30 @@ class Colour:
 if __name__ == "__main__":
     # First command line argument will be the file name of image. If none is supplied, generate random table
     if len(sys.argv) == 1:
-        while True:
-            image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
-            image[:] = Colour.TABLE
-            table = Table(image)
-
-            # add pockets to table
-            table.pockets.append(Pocket(Point(100, 100)))
-            table.pockets.append(Pocket(Point(400, 100)))
-            table.pockets.append(Pocket(Point(700, 100)))
-            table.pockets.append(Pocket(Point(100, 500)))
-            table.pockets.append(Pocket(Point(400, 500)))
-            table.pockets.append(Pocket(Point(700, 500)))
-
-            # add balls to table at random location
-            table.add_ball("cue")
-
-            for ball in range(7):
-                table.add_ball("solids")
-                table.add_ball("stripes")
-
-            table.calculate_best_shot("solids")
-            table.show_best_shot()
+        print("Argument expected")
+        sys.exit(1)
+        # while True:
+        #     image = np.zeros((600, 800, 3), np.uint8)  # create a blank black image
+        #     image[:] = Colour.TABLE
+        #     table = Table(image)
+        #
+        #     # add pockets to table
+        #     table.pockets.append(Pocket(Point(100, 100)))
+        #     table.pockets.append(Pocket(Point(400, 100)))
+        #     table.pockets.append(Pocket(Point(700, 100)))
+        #     table.pockets.append(Pocket(Point(100, 500)))
+        #     table.pockets.append(Pocket(Point(400, 500)))
+        #     table.pockets.append(Pocket(Point(700, 500)))
+        #
+        #     # add balls to table at random location
+        #     table.add_ball("cue")
+        #
+        #     for ball in range(7):
+        #         table.add_ball("solids")
+        #         table.add_ball("stripes")
+        #
+        #     table.calculate_best_shot("solids")
+        #     table.show_best_shot()
     else:  # if file is specified
         file_path = sys.argv[1]
 
